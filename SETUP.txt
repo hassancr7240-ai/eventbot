@@ -1,0 +1,105 @@
+========================================
+  EventBot Pro — Setup & Usage Guide
+========================================
+
+FIRST TIME SETUP
+----------------
+1. Install dependencies:
+   pip install -r requirements.txt
+
+2. Seed existing data (already done):
+   python seed_from_excel.py
+
+3. Clean up database:
+   python fix_db.py
+
+
+HOW TO USE
+----------
+
+A) START THE DASHBOARD (recommended)
+   Double-click: start_dashboard.bat
+   Opens in browser at: http://localhost:8501
+   Password: workrbee2026
+
+B) RUN THE BOT ONCE (manual)
+   Double-click: run_bot_now.bat
+   Scrapes all venues, saves Excel to output/ folder
+
+C) AUTO-SCHEDULE (daily at 6 AM)
+   Double-click: start_scheduler.bat
+   Keep window open — bot runs automatically every day
+
+
+DASHBOARD PAGES
+---------------
+  Dashboard     — Summary stats and recent events
+  Run Bot       — Launch a scrape (select venues + year range)
+  Live Tracker  — View/edit all records, log call notes, update status
+  Export Excel  — Download full workbook (one tab per venue)
+  Settings      — Venue list, add new venue, system info
+
+
+OUTPUT FILES
+------------
+  output/EventBot_Tracker_YYYYMMDD_HHMM.xlsx
+    - SUMMARY tab
+    - One tab per venue
+    - Columns: Event Name, Contact Person, Email, Telephone,
+               Date of Event, e-mail sent, Call Notes 1-11
+    - Sorted chronologically
+    - Color-coded by status
+
+
+ADDING NEW VENUES
+-----------------
+  Go to Settings > Add a New Venue in the dashboard.
+  Copy the generated code block into venues.py and restart.
+
+
+CHANGING PASSWORD
+-----------------
+  Edit start_dashboard.bat and change: workrbee2026
+  Or set environment variable: EVENTBOT_PASSWORD=yourpassword
+
+
+DATABASE LOCATION
+-----------------
+  data/events_db.json — all scraped data
+  data/scheduler_config.json — scheduler settings
+  logs/scheduler.log — run history
+
+
+VENUES COVERED (62 total)
+--------------------------
+  Washington DC (8): DC Convention Center, Marriott Marquis,
+    Hilton Capitol Hill, Renaissance DC, Grand Hyatt, Omni Shoreham,
+    JW Marriott, + more
+  National Harbor MD (3): Gaylord National Harbor, Harborside, MGM
+  Bethesda MD (3): Bethesda North Marriott, Hyatt Regency, The Bethesdan
+  Baltimore MD (15): Convention Center, Hilton, Marriott IH, Four Seasons,
+    Embassy Suites, Hyatt Regency, Marriott Waterfront, Renaissance BHH,
+    Courtyard, Hilton Garden Inn, Renaissance Harborplace, Hotel Indigo,
+    Lord Baltimore, Hampton Inn, + more
+  Philadelphia PA (28): Pennsylvania Convention Center, Philadelphia Marriott,
+    Loews, Element, Hyatt, Sheraton, W Hotel, Bellevue, Circa Centre,
+    Logan, Four Seasons, Sofitel, Ritz-Carlton, Union League, Sonesta,
+    Marriott Old City, Kimpton Palomar, Kimpton Monaco, Live Casino,
+    Hilton Penn's Landing, Airport Marriott, Valley Forge Casino,
+    Oaks Expo Center, Warwick, Notary, + more
+  Delaware (4): Chase Center, Hotel DuPont, DoubleTree Wilmington, + more
+
+
+SEARCH SOURCES
+--------------
+  - Google search (rate-limited, ~12s between queries)
+  - Bing search (second engine, no API key required)
+  - allconferencealert.net
+  - 10times.com
+  - eventbrite.com
+  - tradeshowz.com
+  - conferencenext.com
+  - expodatabase.com
+  - tsnn.com
+  - + 20 more directories from client's list
+========================================
