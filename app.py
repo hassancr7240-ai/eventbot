@@ -206,14 +206,29 @@ elif page == "🤖 Run Bot":
             sel_venues = venue_options
 
     with col2:
-        st.markdown("### Year Range")
-        cy = datetime.now().year
-        start_yr = st.selectbox("From", list(range(cy, cy+2)), index=0)
-        end_yr   = st.selectbox("To",   list(range(cy, cy+5)), index=3)
+        st.markdown("### Date Range")
+        use_custom_dates = st.checkbox("Use custom date range", value=False)
+
+        if use_custom_dates:
+            start_date = st.date_input("Start date", value=datetime.now().date())
+            end_date = st.date_input("End date", value=datetime.now().date().replace(year=datetime.now().year + 1))
+            start_yr = start_date.year
+            end_yr = end_date.year
+        else:
+            cy = datetime.now().year
+            start_yr = st.selectbox("From", list(range(cy, cy+2)), index=0)
+            end_yr   = st.selectbox("To",   list(range(cy, cy+5)), index=3)
+
         st.markdown("### Sources")
         use_google   = st.checkbox("Google search", value=True)
+        use_serpapi  = st.checkbox("SerpAPI (Google results)", value=False,
+                                   help="Real Google results via API — 250 free searches/month")
         use_industry = st.checkbox("Industry directories", value=True,
-                                   help="allconferencealert.net, 10times.com, tradeshowz.com, etc.")
+                                   help="Eventbrite, Ticketmaster, allconferencealert.net, etc.")
+        use_eventbrite = st.checkbox("Eventbrite API", value=False,
+                                     help="Direct Eventbrite event search")
+        use_ticketmaster = st.checkbox("Ticketmaster API", value=False,
+                                       help="Direct Ticketmaster event search")
 
     # Phrase preview
     if sel_venues:
@@ -341,13 +356,35 @@ elif page == "📋 Live Tracker":
         stat_opts = ["All","New","Emailed","Called","Voicemail","Booked","Contract Signed","Do Not Contact"]
         status_f = st.selectbox("Status", stat_opts)
 
-    search = st.text_input("🔍 Search event name, contact, or email", "")
+    # Date range filter
+    c5, c6, c7 = st.columns([2, 2, 2])
+    with c5:
+        year_opts = ["All Years"] + sorted(
+            [str(y) for y in range(2026, 2031) if y],
+            reverse=True
+        )
+        year_f = st.selectbox("Year", year_opts)
+    with c6:
+        month_opts = ["All Months", "January", "February", "March", "April", "May", "June",
+                      "July", "August", "September", "October", "November", "December"]
+        month_f = st.selectbox("Month", month_opts)
+    with c7:
+        pass  # spacer
+
+    search = st.text_input("Search event name, contact, or email", "")
 
     fdf = df.copy()
     if city_f   != "All": fdf = fdf[fdf["city"] == city_f]
     if state_f  != "All": fdf = fdf[fdf["state"] == state_f]
     if venue_f  != "All": fdf = fdf[fdf["venue_name"] == venue_f]
     if status_f != "All": fdf = fdf[fdf["status"].str.lower() == status_f.lower()]
+
+    # Year and month filtering
+    if year_f != "All Years":
+        fdf = fdf[fdf["event_dates"].str.contains(year_f, case=False, na=False)]
+    if month_f != "All Months":
+        fdf = fdf[fdf["event_dates"].str.contains(month_f, case=False, na=False)]
+
     if search:
         mask = (
             fdf["event_name"].str.contains(search, case=False, na=False) |
@@ -502,6 +539,86 @@ elif page == "⚙️ Settings":
         st.success(f"Brave Search is ACTIVE — key ends: ...{_current_brave_key[-6:]}")
     else:
         st.warning("No Brave key set. Bot uses industry websites only (still works — Brave just gives more results).")
+
+    st.markdown("---")
+    st.markdown("### 🔍 SerpAPI Key (Google results via API)")
+    st.markdown(
+        "SerpAPI gives **real Google search results** via API. "
+        "**Free tier: 250 searches/month | Paid: $25/month for 10,000 searches.**\n\n"
+        "Get your free key at 👉 **https://serpapi.com**"
+    )
+    _current_serpapi_key = _cfg.get("serpapi_key", "")
+    with st.form("serpapi_key_form"):
+        serpapi_key_input = st.text_input(
+            "SerpAPI Key",
+            value=_current_serpapi_key,
+            type="password",
+            placeholder="Paste your SerpAPI key here",
+        )
+        if st.form_submit_button("💾 Save SerpAPI Key"):
+            _cfg["serpapi_key"] = serpapi_key_input.strip()
+            os.makedirs(os.path.dirname(_cfg_path), exist_ok=True)
+            _j.dump(_cfg, open(_cfg_path, "w", encoding="utf-8"), indent=2)
+            if serpapi_key_input.strip():
+                st.success("SerpAPI key saved!")
+                st.rerun()
+            else:
+                st.info("Key cleared.")
+                st.rerun()
+    if _current_serpapi_key:
+        st.success(f"SerpAPI is ACTIVE — key ends: ...{_current_serpapi_key[-6:]}")
+    else:
+        st.info("No SerpAPI key set (optional — Google search works fine without it).")
+
+    st.markdown("---")
+    st.markdown("### 🎟️ Eventbrite API Key")
+    st.markdown(
+        "Search events directly from Eventbrite.\n\n"
+        "Get your free key at 👉 **https://www.eventbrite.com/platform/api/**"
+    )
+    _current_eventbrite_key = _cfg.get("eventbrite_api_key", "")
+    with st.form("eventbrite_key_form"):
+        eventbrite_key_input = st.text_input(
+            "Eventbrite API Key",
+            value=_current_eventbrite_key,
+            type="password",
+            placeholder="Paste your Eventbrite API key here",
+        )
+        if st.form_submit_button("💾 Save Eventbrite Key"):
+            _cfg["eventbrite_api_key"] = eventbrite_key_input.strip()
+            os.makedirs(os.path.dirname(_cfg_path), exist_ok=True)
+            _j.dump(_cfg, open(_cfg_path, "w", encoding="utf-8"), indent=2)
+            st.success("Eventbrite key saved!")
+            st.rerun()
+    if _current_eventbrite_key:
+        st.success(f"Eventbrite API is ACTIVE")
+    else:
+        st.info("No Eventbrite key set (optional).")
+
+    st.markdown("---")
+    st.markdown("### 🎫 Ticketmaster API Key")
+    st.markdown(
+        "Search events directly from Ticketmaster.\n\n"
+        "Get your free key at 👉 **https://developer.ticketmaster.com/**"
+    )
+    _current_ticketmaster_key = _cfg.get("ticketmaster_api_key", "")
+    with st.form("ticketmaster_key_form"):
+        ticketmaster_key_input = st.text_input(
+            "Ticketmaster API Key",
+            value=_current_ticketmaster_key,
+            type="password",
+            placeholder="Paste your Ticketmaster API key here",
+        )
+        if st.form_submit_button("💾 Save Ticketmaster Key"):
+            _cfg["ticketmaster_api_key"] = ticketmaster_key_input.strip()
+            os.makedirs(os.path.dirname(_cfg_path), exist_ok=True)
+            _j.dump(_cfg, open(_cfg_path, "w", encoding="utf-8"), indent=2)
+            st.success("Ticketmaster key saved!")
+            st.rerun()
+    if _current_ticketmaster_key:
+        st.success(f"Ticketmaster API is ACTIVE")
+    else:
+        st.info("No Ticketmaster key set (optional).")
 
     st.markdown("---")
     st.markdown("### 🔑 Change Password")
