@@ -57,17 +57,15 @@ PHONE_RE = re.compile(
 
 def generate_phrases(venue_search_name: str, start_year: int, end_year: int, city: str = "") -> list[str]:
     """
-    Generate all long-tail search phrases exactly as client's instructions say:
-    '[Month] [Year] [EventType] [VenueName]'
-    Plus city-specific extras from the Addition search tab.
+    Generate search phrases. Optimized for speed:
+    - 1 phrase per month per year (faster than 12 event types per month)
+    - Format: [Month] [Year] [VenueName]
     """
     phrases = []
     for year in range(start_year, end_year + 1):
         for month in MONTHS:
-            for event_type in EVENT_TYPES:
-                phrases.append(f"{month} {year} {event_type} {venue_search_name}")
+            phrases.append(f"{month} {year} {venue_search_name}")
 
-    # City-specific extras from client's "Addition search" tab
     if city and city in CITY_EXTRA_PHRASES:
         for template in CITY_EXTRA_PHRASES[city]:
             phrases.append(template.format(city=city))
@@ -92,7 +90,7 @@ def fetch(url: str, timeout: int = 15) -> BeautifulSoup | None:
         return None
 
 
-def _polite_delay(min_s: float = 2.0, max_s: float = 5.0) -> None:
+def _polite_delay(min_s: float = 0.2, max_s: float = 0.8) -> None:
     time.sleep(random.uniform(min_s, max_s))
 
 
@@ -199,7 +197,7 @@ def google_search(query: str, num_results: int = 5) -> list[str]:
     try:
         from googlesearch import search
         results = []
-        for url in search(query, num_results=num_results, lang="en", sleep_interval=15):
+        for url in search(query, num_results=num_results, lang="en", sleep_interval=10):
             if _is_useful_url(url):
                 results.append(url)
             if len(results) >= num_results:
@@ -212,27 +210,157 @@ def google_search(query: str, num_results: int = 5) -> list[str]:
 
 def multi_search(query: str, num_results: int = 5) -> list[str]:
     """
-    Search Brave (primary, if API key set) + Google (fallback).
-    Returns deduplicated combined list.
-    Brave is preferred: faster, no blocking, real web results.
+    Use Google search with longer delays to avoid blocking.
+    SerpAPI/Brave require paid plans or API keys.
     """
-    seen: set[str] = set()
-    combined: list[str] = []
+    return google_search(query, num_results=num_results)
 
-    # Try Brave first (needs free API key in data/config.json)
-    for url in brave_search(query, num_results=num_results):
-        if url not in seen:
-            seen.add(url)
-            combined.append(url)
 
-    # Fall back to Google if Brave gave too few results
-    if len(combined) < num_results:
-        for url in google_search(query, num_results=num_results):
-            if url not in seen:
-                seen.add(url)
-                combined.append(url)
+def _get_serpapi_key() -> str:
+    """Read SerpAPI key from config file or environment variable."""
+    key = _os.environ.get("SERPAPI_KEY", "")
+    if key:
+        return key
+    cfg_path = _os.path.join(_os.path.dirname(__file__), "data", "config.json")
+    if _os.path.exists(cfg_path):
+        try:
+            cfg = _json.load(open(cfg_path, encoding="utf-8"))
+            return cfg.get("serpapi_key", "")
+        except Exception:
+            pass
+    return ""
 
-    return combined[:num_results * 2]
+
+def serpapi_search(query: str, num_results: int = 5) -> list[str]:
+    """
+    SerpAPI — real Google results via API. Free tier: 250 searches/month.
+    Paid: $25/month for 10,000 searches. Returns list of result URLs.
+    """
+    api_key = _get_serpapi_key()
+    if not api_key:
+        return []
+    try:
+        resp = SESSION.get(
+            "https://serpapi.com/search",
+            params={
+                "q": query,
+                "api_key": api_key,
+                "engine": "google",
+                "num": num_results,
+                "gl": "us",
+                "hl": "en",
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            logger.debug("SerpAPI HTTP %s for %r", resp.status_code, query)
+            return []
+        data = resp.json()
+        results = []
+        for item in data.get("organic_results", []):
+            url = item.get("link", "")
+            if url and _is_useful_url(url):
+                results.append(url)
+            if len(results) >= num_results:
+                break
+        time.sleep(random.uniform(1, 2))
+        return results
+    except Exception as exc:
+        logger.debug("SerpAPI search failed for %r: %s", query, exc)
+        return []
+
+
+def eventbrite_search(venue_name: str, start_date: str, end_date: str) -> list[dict]:
+    """
+    Search Eventbrite API for events at a specific venue.
+    Returns list of event records (name, date, url).
+    Docs: https://www.eventbrite.com/platform/api/
+    """
+    api_key = _os.environ.get("EVENTBRITE_API_KEY", "")
+    cfg_path = _os.path.join(_os.path.dirname(__file__), "data", "config.json")
+    if _os.path.exists(cfg_path):
+        try:
+            cfg = _json.load(open(cfg_path, encoding="utf-8"))
+            api_key = cfg.get("eventbrite_api_key", api_key)
+        except Exception:
+            pass
+    if not api_key:
+        return []
+    try:
+        resp = SESSION.get(
+            "https://www.eventbriteapi.com/v3/events/search/",
+            params={
+                "token": api_key,
+                "q": venue_name,
+                "start_date.range_start": start_date,
+                "start_date.range_end": end_date,
+                "sort_by": "date",
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            logger.debug("Eventbrite API HTTP %s", resp.status_code)
+            return []
+        data = resp.json()
+        results = []
+        for event in data.get("events", []):
+            results.append({
+                "event_name": event.get("name", ""),
+                "event_dates": event.get("start", {}).get("local", ""),
+                "event_url": event.get("url", ""),
+                "source": "eventbrite",
+            })
+        return results
+    except Exception as exc:
+        logger.debug("Eventbrite search failed: %s", exc)
+        return []
+
+
+def ticketmaster_search(venue_name: str, start_date: str, end_date: str) -> list[dict]:
+    """
+    Search Ticketmaster API for events at a specific venue.
+    Returns list of event records (name, date, url).
+    Docs: https://developer.ticketmaster.com/
+    """
+    api_key = _os.environ.get("TICKETMASTER_API_KEY", "")
+    cfg_path = _os.path.join(_os.path.dirname(__file__), "data", "config.json")
+    if _os.path.exists(cfg_path):
+        try:
+            cfg = _json.load(open(cfg_path, encoding="utf-8"))
+            api_key = cfg.get("ticketmaster_api_key", api_key)
+        except Exception:
+            pass
+    if not api_key:
+        return []
+    try:
+        resp = SESSION.get(
+            "https://app.ticketmaster.com/discovery/v2/events",
+            params={
+                "apikey": api_key,
+                "keyword": venue_name,
+                "startDateTime": start_date,
+                "endDateTime": end_date,
+                "sort": "date,asc",
+                "countryCode": "US",
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            logger.debug("Ticketmaster API HTTP %s", resp.status_code)
+            return []
+        data = resp.json()
+        results = []
+        for event in data.get("_embedded", {}).get("events", []):
+            results.append({
+                "event_name": event.get("name", ""),
+                "event_dates": event.get("dates", {}).get("start", {}).get("localDate", ""),
+                "event_url": event.get("url", ""),
+                "source": "ticketmaster",
+            })
+        return results
+    except Exception as exc:
+        logger.debug("Ticketmaster search failed: %s", exc)
+        return []
 
 
 # ── CONTACT EXTRACTION ────────────────────────────────────────────────────────
