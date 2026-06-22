@@ -16,9 +16,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from venues import VENUES, INDUSTRY_SOURCES
 from scraper import scrape_venue, crawl_all_industry_sources
-from deduplicator import upsert_records, record_run_timestamp
+from deduplicator import upsert_records, record_run_timestamp, load_db
 from excel_writer import build_excel
-from google_sheets_writer import write_to_sheet
+from google_sheets_uploader import upload_to_google_sheets
 
 logging.basicConfig(
     level=logging.INFO,
@@ -130,9 +130,8 @@ def run_once(cfg: dict | None = None) -> None:
 
     # Upload to Google Sheets
     try:
-        from deduplicator import load_db
         records = load_db()
-        write_to_sheet(records)
+        upload_to_google_sheets(records)
     except Exception as exc:
         logger.warning("Google Sheets upload failed: %s", exc)
 
