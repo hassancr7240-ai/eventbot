@@ -18,6 +18,7 @@ from venues import VENUES, INDUSTRY_SOURCES
 from scraper import scrape_venue, crawl_all_industry_sources
 from deduplicator import upsert_records, record_run_timestamp
 from excel_writer import build_excel
+from google_sheets_writer import write_to_sheet
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,6 +127,14 @@ def run_once(cfg: dict | None = None) -> None:
             logger.info("Excel exported: %s", path)
         except Exception as exc:
             logger.warning("Excel export failed: %s", exc)
+
+    # Upload to Google Sheets
+    try:
+        from deduplicator import load_db
+        records = load_db()
+        write_to_sheet(records)
+    except Exception as exc:
+        logger.warning("Google Sheets upload failed: %s", exc)
 
     logger.info(
         "=== Run Complete === +%d new | ~%d updated",
