@@ -20,6 +20,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from venues import EVENT_TYPES, TARGET_TITLES, CITY_EXTRA_PHRASES
+from claude_extractor import extract_event_from_text, validate_contact_info
 
 logger = logging.getLogger(__name__)
 
