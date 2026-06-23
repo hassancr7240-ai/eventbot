@@ -112,6 +112,8 @@ with st.sidebar:
         "🤖 Run Bot",
         "📋 Live Tracker",
         "📥 Export Excel",
+        "📊 Reports",
+        "📞 Contacts",
         "⚙️ Settings",
     ], label_visibility="collapsed")
     st.markdown("---")
@@ -677,3 +679,74 @@ elif page == "⚙️ Settings":
     st.markdown(f"- **Last bot run:** {get_stats()['last_run']}")
     st.markdown(f"- **DB path:** `data/events_db.json`")
     st.markdown(f"- **Output folder:** `output/`")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REPORTS
+# ═══════════════════════════════════════════════════════════════════════════════
+elif page == "📊 Reports":
+    st.markdown("## 📊 Reports")
+    st.markdown("---")
+    st.markdown("### Event Summary by Venue")
+
+    s = get_stats()
+    st.markdown(f"**Total Events:** {s['total_events']}")
+    st.markdown(f"**Total Venues:** {len(VENUES)}")
+
+    # Load database and show breakdown
+    db = load_db()
+    venue_counts = {venue: len(events) for venue, events in db.items() if events}
+
+    if venue_counts:
+        st.bar_chart(venue_counts)
+        st.markdown("### Venues with Most Events")
+        sorted_venues = sorted(venue_counts.items(), key=lambda x: x[1], reverse=True)
+        for venue, count in sorted_venues[:10]:
+            st.markdown(f"- **{venue}:** {count} events")
+    else:
+        st.info("No events found yet. Run the bot to generate reports.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONTACTS
+# ═══════════════════════════════════════════════════════════════════════════════
+elif page == "📞 Contacts":
+    st.markdown("## 📞 Contacts Directory")
+    st.markdown("---")
+
+    db = load_db()
+
+    # Filter contacts with emails
+    all_contacts = []
+    for venue, events in db.items():
+        for event in events:
+            if event.get("email") and event.get("email").strip():
+                all_contacts.append({
+                    "Venue": event.get("venue_name", ""),
+                    "Contact": event.get("contact_person", ""),
+                    "Email": event.get("email", ""),
+                    "Phone": event.get("phone", ""),
+                    "Event": event.get("event_name", ""),
+                })
+
+    if all_contacts:
+        st.markdown(f"### Found {len(all_contacts)} Contacts")
+
+        # Search filter
+        search = st.text_input("Search by email or contact name:")
+        if search:
+            all_contacts = [c for c in all_contacts if search.lower() in c["Email"].lower() or search.lower() in c["Contact"].lower()]
+
+        # Display as table
+        st.dataframe(all_contacts, use_container_width=True)
+
+        # Export as CSV
+        csv = "\n".join([",".join(c.values()) for c in all_contacts])
+        st.download_button(
+            "📥 Download Contacts CSV",
+            csv,
+            "contacts.csv",
+            "text/csv"
+        )
+    else:
+        st.info("No contacts with emails found yet. Run the bot to discover contacts.")
