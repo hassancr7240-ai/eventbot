@@ -255,6 +255,25 @@ VENUES = [
         "search_name": "Chesapeake Arena Baltimore events",
         "source_urls": [],
     },
+    {
+        "city_group": "Baltimore MD",
+        "name": "Murphy Fine Arts Center",
+        "address": "2201 Argonne Dr, Baltimore, MD 21251",
+        "city": "Baltimore",
+        "state": "MD",
+        "search_name": "Murphy Fine Arts Center Baltimore events",
+        "source_urls": [],
+    },
+    # ── UPPER MARLBORO MD ──────────────────────────────────────────────────────
+    {
+        "city_group": "Upper Marlboro MD",
+        "name": "Show Place Arena",
+        "address": "14900 Pennsylvania Ave, Upper Marlboro, MD 20772-4100",
+        "city": "Upper Marlboro",
+        "state": "MD",
+        "search_name": "Show Place Arena Upper Marlboro events",
+        "source_urls": [],
+    },
     # ── PHILADELPHIA PA ───────────────────────────────────────────────────────
     {
         "city_group": "Philadelphia PA",
