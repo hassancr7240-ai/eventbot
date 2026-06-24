@@ -182,42 +182,123 @@ st.markdown("---")
 tab1, tab2, tab3, tab4 = st.tabs(["🚀 Run Bot", "📋 Live Tracker", "➕ Add Venues", "📥 Export & Upload"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1: RUN BOT
+# TAB 1: RUN BOT (with full filters)
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab1:
     st.markdown("## 🚀 Start Bot Search")
+    st.markdown("**Customize your search before running**")
 
-    col1, col2 = st.columns([2, 1])
+    # ── FILTER SECTION ─────────────────────────────────────────────────────────
+    st.markdown("### ⚙️ Search Filters")
+
+    col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("""
-        **What happens when you click START:**
-        - Searches all 62 venues for 2026 events
-        - Validates events with AI
-        - Removes duplicates
-        - Saves results to Live Tracker
-        - Takes 15-20 minutes
+        st.markdown("**Year Range**")
+        start_year = st.slider("Start Year", 2024, 2030, 2026, help="Search from this year")
+        end_year = st.slider("End Year", 2024, 2030, 2026, help="Search until this year")
 
-        **You can:**
-        - Watch Live Tracker for real-time results
-        - Download results anytime
-        - Export to Google Sheets
-        """)
+        if start_year > end_year:
+            st.error("Start year must be before end year")
+            start_year, end_year = end_year, start_year
 
     with col2:
-        if st.button("▶️ START BOT", use_container_width=True, key="run_bot_btn", help="Searches all venues"):
-            st.session_state.bot_running = True
-            st.rerun()
+        st.markdown("**Venues**")
+        venue_list = get_venue_list()
+        search_mode = st.radio("Search:", ["All Venues", "Select Specific"], horizontal=True)
+
+        if search_mode == "Select Specific":
+            selected_venues = st.multiselect("Choose venues:", venue_list, default=venue_list[:5])
+            venues_to_search = selected_venues if selected_venues else venue_list
+        else:
+            venues_to_search = "all"
+            st.info(f"✅ Searching all {len(VENUES)} venues")
+
+    st.markdown("---")
+
+    # ── CITY FILTER ────────────────────────────────────────────────────────────
+    st.markdown("### 🌍 Cities")
+
+    cities = sorted(list(set([v.get("city_group", "") for v in VENUES])))
+    cols = st.columns(4)
+
+    selected_cities = []
+    for idx, city in enumerate(cities):
+        with cols[idx % 4]:
+            if st.checkbox(city, value=True, key=f"city_{city}"):
+                selected_cities.append(city)
+
+    st.markdown("---")
+
+    # ── QUICK PRESETS ─────────────────────────────────────────────────────────
+    st.markdown("### ⚡ Quick Presets")
+
+    preset_col1, preset_col2, preset_col3 = st.columns(3)
+
+    with preset_col1:
+        if st.button("🟢 Fast (Today Only)", use_container_width=True):
+            st.session_state.preset = "today"
+
+    with preset_col2:
+        if st.button("🟡 Standard (2026)", use_container_width=True):
+            st.session_state.preset = "2026"
+
+    with preset_col3:
+        if st.button("🔴 Full (2024-2030)", use_container_width=True):
+            st.session_state.preset = "full"
+
+    # Apply preset
+    if "preset" in st.session_state:
+        if st.session_state.preset == "today":
+            from datetime import date
+            today = date.today()
+            st.info(f"🟢 Fast mode: Searching events for {today.strftime('%B %d, %Y')} only")
+            start_year = end_year = today.year
+        elif st.session_state.preset == "2026":
+            st.info("🟡 Standard mode: Searching all 2026 events")
+            start_year = end_year = 2026
+        elif st.session_state.preset == "full":
+            st.info("🔴 Full mode: Searching 2024-2030")
+            start_year, end_year = 2024, 2030
+
+    st.markdown("---")
+
+    # ── START BOT ──────────────────────────────────────────────────────────────
+    st.markdown("### Summary")
+    summary_col1, summary_col2, summary_col3 = st.columns(3)
+
+    with summary_col1:
+        st.metric("Years", f"{start_year}-{end_year}")
+
+    with summary_col2:
+        if venues_to_search == "all":
+            st.metric("Venues", len(VENUES))
+        else:
+            st.metric("Venues", len(venues_to_search))
+
+    with summary_col3:
+        st.metric("Cities", len(selected_cities))
+
+    st.markdown("---")
+
+    if st.button("▶️ START BOT SEARCH", use_container_width=True, key="run_bot_btn"):
+        st.session_state.bot_running = True
+        st.session_state.search_config = {
+            "start_year": start_year,
+            "end_year": end_year,
+            "venues": venues_to_search,
+            "cities": selected_cities
+        }
+        st.rerun()
 
     if st.session_state.bot_running:
-        st.markdown("<div class='warning-box'><strong>⏳ Bot is searching...</strong><br>Check Live Tracker for real-time results. This takes 15-20 minutes.</div>", unsafe_allow_html=True)
-
-        progress_placeholder = st.empty()
+        st.markdown("<div class='warning-box'><strong>⏳ Bot is searching...</strong><br>Check Live Tracker for real-time results. Do NOT close this page.</div>", unsafe_allow_html=True)
 
         def run_bot_background():
             try:
+                cmd = ["python", "scheduler.py", "--run-now", "--years", str(start_year), str(end_year)]
                 result = subprocess.run(
-                    ["python", "scheduler.py", "--run-now", "--years", "2026", "2026"],
+                    cmd,
                     cwd=os.path.dirname(__file__),
                     capture_output=True,
                     text=True,
@@ -232,7 +313,6 @@ with tab1:
         thread = threading.Thread(target=run_bot_background, daemon=True)
         thread.start()
 
-        # Auto-refresh every 3 seconds
         time.sleep(3)
         st.rerun()
 
