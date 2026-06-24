@@ -1,17 +1,16 @@
 """
-EventBot Pro - FINAL VERSION
-Fresh start each search. No junk. No duplicates. Real contacts only.
-Fast, clean, simple.
+EventBot Pro - COMPLETE VERSION
+Date picker | Real-time progress | Export visible | Venue management | Working scraper
 """
 
 import streamlit as st
 import os
 import json
-import time
-import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
-from venues import VENUES
+import subprocess
+import threading
+import time
 
 st.set_page_config(page_title="EventBot Pro", layout="wide", initial_sidebar_state="collapsed")
 
@@ -23,22 +22,19 @@ st.markdown("""
 <style>
 body { background: #f5f5f5; font-family: 'Segoe UI', sans-serif; }
 .main { background: #ffffff; }
-h1 { color: #1a1a1a; margin-bottom: 0.5rem; }
-h2 { color: #2d2d2d; margin-top: 1rem; }
+h1 { color: #1a1a1a; }
 
 .stat-box {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white; padding: 25px; border-radius: 10px; text-align: center;
 }
 .stat-num { font-size: 2.2rem; font-weight: bold; }
-.stat-label { font-size: 0.85rem; opacity: 0.9; margin-top: 8px; }
+.stat-label { font-size: 0.85rem; opacity: 0.9; }
 
 .status-running { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; }
 .status-done { background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px; }
-.status-error { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; border-radius: 5px; }
 
-.stButton > button { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; width: 100%; }
-.stButton > button:hover { opacity: 0.9; }
+.stButton > button { background: linear-gradient(135deg, #667eea, #764ba2); color: white; width: 100%; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -60,92 +56,93 @@ if not st.session_state.auth:
                 st.session_state.auth = True
                 st.rerun()
             else:
-                st.error("❌ Wrong password")
+                st.error("Wrong password")
     st.stop()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SESSION
+# HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if "current_results" not in st.session_state:
-    st.session_state.current_results = []
-if "search_running" not in st.session_state:
-    st.session_state.search_running = False
-if "last_search" not in st.session_state:
-    st.session_state.last_search = None
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LOAD CURRENT RESULTS
-# ═══════════════════════════════════════════════════════════════════════════════
+RESULTS_FILE = os.path.join(os.path.dirname(__file__), "data", "current_results.json")
+VENUES_FILE = os.path.join(os.path.dirname(__file__), "data", "custom_venues.json")
 
 def load_results():
-    """Load current search results from JSON"""
-    try:
-        results_file = os.path.join(os.path.dirname(__file__), "data", "current_results.json")
-        if os.path.exists(results_file):
-            with open(results_file, "r") as f:
-                return json.load(f)
-    except:
-        pass
+    if os.path.exists(RESULTS_FILE):
+        with open(RESULTS_FILE) as f:
+            return json.load(f)
     return []
 
 def save_results(results):
-    """Save current search results to JSON"""
-    try:
-        results_dir = os.path.join(os.path.dirname(__file__), "data")
-        os.makedirs(results_dir, exist_ok=True)
-        with open(os.path.join(results_dir, "current_results.json"), "w") as f:
-            json.dump(results, f, indent=2)
-    except:
-        pass
+    os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
+    with open(RESULTS_FILE, "w") as f:
+        json.dump(results, f, indent=2)
+
+def load_custom_venues():
+    if os.path.exists(VENUES_FILE):
+        with open(VENUES_FILE) as f:
+            return json.load(f)
+    return []
+
+def save_custom_venues(venues):
+    os.makedirs(os.path.dirname(VENUES_FILE), exist_ok=True)
+    with open(VENUES_FILE, "w") as f:
+        json.dump(venues, f, indent=2)
+
+def add_venue(name, city):
+    venues = load_custom_venues()
+    if {"name": name, "city": city} not in venues:
+        venues.append({"name": name, "city": city})
+        save_custom_venues(venues)
+        return True
+    return False
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 st.markdown("# 🤖 EventBot Pro")
-st.markdown("**Conference & Event Discovery Engine**")
+st.markdown("**Conference & Event Discovery**")
 st.divider()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TOP METRICS
+# METRICS
 # ─────────────────────────────────────────────────────────────────────────────
 
-current_results = load_results()
+results = load_results()
 
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.markdown(f"""
     <div class="stat-box">
-        <div class="stat-num">{len(current_results)}</div>
+        <div class="stat-num">{len(results)}</div>
         <div class="stat-label">Events Found</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
-    contacts_count = len([r for r in current_results if r.get("contact_person")])
+    with_contact = len([r for r in results if r.get("contact_person")])
     st.markdown(f"""
     <div class="stat-box">
-        <div class="stat-num">{contacts_count}</div>
+        <div class="stat-num">{with_contact}</div>
         <div class="stat-label">With Contacts</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
-    emails_count = len([r for r in current_results if r.get("email")])
+    with_email = len([r for r in results if r.get("email")])
     st.markdown(f"""
     <div class="stat-box">
-        <div class="stat-num">{emails_count}</div>
+        <div class="stat-num">{with_email}</div>
         <div class="stat-label">With Emails</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col4:
-    venues_count = len(set([r.get("venue_name", "") for r in current_results if r.get("venue_name")]))
+    venues = len(set([r.get("venue_name", "") for r in results if r.get("venue_name")]))
     st.markdown(f"""
     <div class="stat-box">
-        <div class="stat-num">{venues_count}</div>
+        <div class="stat-num">{venues}</div>
         <div class="stat-label">Venues</div>
     </div>
     """, unsafe_allow_html=True)
@@ -153,110 +150,135 @@ with col4:
 st.divider()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN INTERFACE
+# MAIN TABS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-col_search, col_live = st.columns([1, 3])
+tab_search, tab_results, tab_manage = st.tabs(["🔍 Search", "📊 Results", "⚙️ Manage"])
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LEFT: SEARCH PANEL
+# TAB 1: SEARCH
 # ─────────────────────────────────────────────────────────────────────────────
 
-with col_search:
-    st.markdown("### 🔍 Search")
+with tab_search:
+    st.markdown("## 🔍 Search Events")
 
-    # Venue selection
-    venue_names = sorted(list(set([v["name"] for v in VENUES])))
-    selected_venue = st.selectbox("Select Venue", venue_names, help="Pick a venue to search")
+    col_settings, col_info = st.columns([1, 2])
 
-    # Year range
-    st.markdown("**Year Range**")
-    col_y1, col_y2 = st.columns(2)
-    with col_y1:
-        start_year = st.number_input("From", 2026, 2030, 2026)
-    with col_y2:
-        end_year = st.number_input("To", 2026, 2030, 2026)
+    with col_settings:
+        st.markdown("### Settings")
 
-    st.markdown("---")
+        # Venue selection
+        venue_names = ["DC Convention Center", "Marriott Marquis", "Gaylord National Harbor"]
+        venue_names += [v["name"] for v in load_custom_venues()]
+        venue_names = sorted(list(set(venue_names)))
 
-    # Start button
-    if st.button("▶️ START SEARCH", use_container_width=True, key="search_btn"):
-        st.session_state.search_running = True
-        st.session_state.current_results = []  # FRESH START - NO OLD DATA
-        st.session_state.last_search = {
-            "venue": selected_venue,
-            "start_year": start_year,
-            "end_year": end_year,
-            "started": datetime.now().isoformat()
-        }
-        save_results([])
-        st.rerun()
+        selected_venue = st.selectbox("Venue", venue_names)
 
-    st.markdown("---")
+        # City selection
+        cities = ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "Bethesda"]
+        selected_city = st.selectbox("City", cities)
 
-    # Filters
-    st.markdown("### 🔎 Filters")
+        st.markdown("**Date Range**")
 
-    if current_results:
-        # Search by text
-        search_text = st.text_input("Search events", placeholder="Event name, contact...")
+        # Start date
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            start_date = st.date_input("From", value=datetime(2026, 6, 1))
 
-        # Filter by city
-        cities = list(set([r.get("city", "") for r in current_results if r.get("city")]))
-        selected_cities = st.multiselect("Cities", cities, default=cities)
+        with col_d2:
+            end_date = st.date_input("To", value=datetime(2026, 12, 31))
 
-        # Filter by contact status
-        has_contact = st.checkbox("Has contact person", value=False)
-        has_email = st.checkbox("Has email", value=False)
-        has_phone = st.checkbox("Has phone", value=False)
+        st.markdown("---")
 
-    else:
-        search_text = ""
-        selected_cities = []
-        has_contact = False
-        has_email = False
-        has_phone = False
+        # Search button
+        if st.button("▶️ START SEARCH", use_container_width=True):
+            save_results([])  # FRESH START
+            st.session_state.searching = True
+            st.rerun()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RIGHT: LIVE TRACKER & RESULTS
-# ─────────────────────────────────────────────────────────────────────────────
+    with col_info:
+        st.markdown("### ℹ️ How It Works")
+        st.info("""
+        1️⃣ Select venue and dates
+        2️⃣ Click START SEARCH
+        3️⃣ Results appear LIVE
+        4️⃣ Go to Results tab
+        5️⃣ Download Excel
 
-with col_live:
-    st.markdown("### 📊 Live Tracker")
+        ⏱️ Takes 2-5 min per venue
 
-    if st.session_state.search_running:
-        st.markdown('<div class="status-running"><strong>⏳ Searching...</strong><br>Results appear below as they are discovered.</div>', unsafe_allow_html=True)
+        **Results show as bot finds them!**
+        """)
 
-        # Run background search
+    # Status message
+    if st.session_state.get("searching", False):
+        st.markdown("""
+        <div class="status-running">
+        <strong>⏳ Searching...</strong><br>
+        Results appear below as they are discovered. Refresh to see updates.
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Run search in background
         def run_search():
             try:
+                start_str = start_date.strftime("%Y-%m-%d")
+                end_str = end_date.strftime("%Y-%m-%d")
+
                 cmd = [
-                    "python", "scraper.py",
+                    "python", "scraper_working.py",
                     "--venue", selected_venue,
-                    "--years", str(start_year), str(end_year)
+                    "--city", selected_city,
+                    "--start", start_str,
+                    "--end", end_str
                 ]
-                subprocess.run(cmd, cwd=os.path.dirname(__file__), timeout=3600)
-                st.session_state.search_running = False
+
+                subprocess.run(cmd, cwd=os.path.dirname(__file__), timeout=600)
+                st.session_state.searching = False
+
             except Exception as e:
                 st.error(f"Error: {e}")
-                st.session_state.search_running = False
+                st.session_state.searching = False
 
-        import threading
-        thread = threading.Thread(target=run_search, daemon=True)
-        thread.start()
-        time.sleep(1)
-        st.rerun()
+        if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
+            thread = threading.Thread(target=run_search, daemon=True)
+            thread.start()
+            st.session_state.search_thread = thread
+            time.sleep(2)
+            st.rerun()
 
-    # Display results
-    if current_results:
-        # Apply filters
-        filtered = current_results
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 2: RESULTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_results:
+    st.markdown("## 📊 Results")
+
+    results = load_results()
+
+    if results:
+        # Filters
+        col_f1, col_f2, col_f3 = st.columns(3)
+
+        with col_f1:
+            search_text = st.text_input("🔍 Search", placeholder="Event name...")
+
+        with col_f2:
+            cities = list(set([r.get("city", "") for r in results if r.get("city")]))
+            selected_city_filter = st.multiselect("Cities", cities, default=cities)
+
+        with col_f3:
+            has_contact = st.checkbox("Has contact")
+            has_email = st.checkbox("Has email")
+
+        # Filter results
+        filtered = results
 
         if search_text:
             filtered = [r for r in filtered if search_text.lower() in str(r).lower()]
 
-        if selected_cities:
-            filtered = [r for r in filtered if r.get("city", "") in selected_cities]
+        if selected_city_filter:
+            filtered = [r for r in filtered if r.get("city", "") in selected_city_filter]
 
         if has_contact:
             filtered = [r for r in filtered if r.get("contact_person")]
@@ -264,105 +286,133 @@ with col_live:
         if has_email:
             filtered = [r for r in filtered if r.get("email")]
 
-        if has_phone:
-            filtered = [r for r in filtered if r.get("phone")]
-
-        # Display results table
-        st.markdown(f"**Found {len(filtered)} events** (Total: {len(current_results)})")
+        # Display table
+        st.markdown(f"**{len(filtered)} of {len(results)} events**")
 
         if filtered:
-            # Create DataFrame
-            df_data = []
-            for r in filtered:
-                df_data.append({
-                    "Date": r.get("event_dates", ""),
-                    "Event": r.get("event_name", "")[:80],
-                    "Venue": r.get("venue_name", ""),
-                    "City": r.get("city", ""),
-                    "Contact": r.get("contact_person", ""),
-                    "Title": r.get("contact_title", ""),
-                    "Email": r.get("email", ""),
-                    "Phone": r.get("phone", ""),
-                })
+            df_data = [{
+                "Date": r.get("event_dates", ""),
+                "Event": r.get("event_name", "")[:70],
+                "Venue": r.get("venue_name", ""),
+                "City": r.get("city", ""),
+                "Contact": r.get("contact_person", ""),
+                "Title": r.get("contact_title", ""),
+                "Email": r.get("email", ""),
+                "Phone": r.get("phone", ""),
+            } for r in filtered]
 
             df = pd.DataFrame(df_data)
             st.dataframe(df, use_container_width=True, height=400)
 
-            # Quick stats
             st.markdown("---")
-            col_s1, col_s2, col_s3 = st.columns(3)
-            with col_s1:
-                st.metric("With Contact", len([r for r in filtered if r.get("contact_person")]))
-            with col_s2:
-                st.metric("With Email", len([r for r in filtered if r.get("email")]))
-            with col_s3:
-                st.metric("With Phone", len([r for r in filtered if r.get("phone")]))
 
-            # Export
-            st.markdown("---")
+            # EXPORT SECTION
             st.markdown("### 📥 Export")
 
-            # Excel
-            try:
-                from openpyxl import Workbook
-                from openpyxl.styles import Font, PatternFill, Alignment
+            col_exp1, col_exp2 = st.columns(2)
 
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "Events"
+            # Excel export
+            with col_exp1:
+                try:
+                    from openpyxl import Workbook
+                    from openpyxl.styles import Font, PatternFill
 
-                headers = ["Date", "Event Name", "Venue", "City", "Contact Person", "Title", "Email", "Phone"]
-                ws.append(headers)
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "Events"
 
-                for cell in ws[1]:
-                    cell.fill = PatternFill(start_color="667eea", end_color="667eea", fill_type="solid")
-                    cell.font = Font(color="FFFFFF", bold=True)
+                    headers = ["Date", "Event", "Venue", "City", "Contact", "Title", "Email", "Phone"]
+                    ws.append(headers)
 
+                    for cell in ws[1]:
+                        cell.fill = PatternFill(start_color="667eea", end_color="667eea", fill_type="solid")
+                        cell.font = Font(color="FFFFFF", bold=True)
+
+                    for r in filtered:
+                        ws.append([
+                            r.get("event_dates", ""),
+                            r.get("event_name", ""),
+                            r.get("venue_name", ""),
+                            r.get("city", ""),
+                            r.get("contact_person", ""),
+                            r.get("contact_title", ""),
+                            r.get("email", ""),
+                            r.get("phone", ""),
+                        ])
+
+                    filename = f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+                    wb.save(filename)
+
+                    with open(filename, "rb") as f:
+                        st.download_button("📥 Download Excel", f, filename)
+
+                    os.remove(filename)
+
+                except Exception as e:
+                    st.warning(f"Excel: {e}")
+
+            # CSV export
+            with col_exp2:
+                import csv
+                from io import StringIO
+
+                csv_buffer = StringIO()
+                writer = csv.writer(csv_buffer)
+                writer.writerow(headers)
                 for r in filtered:
-                    ws.append([
-                        r.get("event_dates", ""),
-                        r.get("event_name", ""),
-                        r.get("venue_name", ""),
-                        r.get("city", ""),
-                        r.get("contact_person", ""),
-                        r.get("contact_title", ""),
-                        r.get("email", ""),
-                        r.get("phone", ""),
-                    ])
+                    writer.writerow([r.get(h.lower(), "") for h in headers])
 
-                for column in ws.columns:
-                    max_length = max(len(str(cell.value or "")) for cell in column)
-                    ws.column_dimensions[column[0].column_letter].width = min(max_length + 2, 40)
-
-                filename = f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-                wb.save(filename)
-
-                with open(filename, "rb") as f:
-                    st.download_button("📥 Download Excel", f, filename)
-
-                os.remove(filename)
-
-            except Exception as e:
-                st.warning(f"Excel export: {e}")
-
-            # CSV
-            import csv
-            from io import StringIO
-
-            csv_buffer = StringIO()
-            writer = csv.writer(csv_buffer)
-            writer.writerow(headers)
-            for r in filtered:
-                writer.writerow([r.get(h.lower().replace(" ", "_"), "") for h in headers])
-
-            st.download_button("📥 Download CSV", csv_buffer.getvalue(), f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
+                st.download_button("📥 Download CSV", csv_buffer.getvalue(), f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
 
         else:
-            st.info("No results match your filters")
+            st.info("No results match filters")
 
-    elif not st.session_state.search_running:
-        if len(current_results) == 0 and st.session_state.last_search is None:
-            st.info("👉 Select a venue and click START SEARCH")
+    else:
+        st.info("👉 Go to Search tab and click START SEARCH")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3: MANAGE VENUES
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_manage:
+    st.markdown("## ⚙️ Manage Venues")
+
+    st.markdown("### ➕ Add Custom Venue")
+
+    col_v1, col_v2 = st.columns([2, 1])
+
+    with col_v1:
+        venue_name = st.text_input("Venue Name", placeholder="e.g., Marriott Downtown")
+
+    with col_v2:
+        venue_city = st.selectbox("City", ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "Bethesda"])
+
+    if st.button("✅ Add Venue", use_container_width=True):
+        if venue_name:
+            if add_venue(venue_name, venue_city):
+                st.success(f"✅ Added: {venue_name}")
+            else:
+                st.warning("Already exists")
+        else:
+            st.error("Enter venue name")
+
+    st.markdown("---")
+
+    st.markdown("### 📋 Current Venues")
+
+    custom = load_custom_venues()
+    default = ["DC Convention Center (Washington)", "Marriott Marquis (Washington)", "Gaylord National Harbor (Oxon Hill)"]
+
+    st.markdown("**Default Venues:**")
+    for v in default:
+        st.write(f"• {v}")
+
+    if custom:
+        st.markdown("**Custom Venues:**")
+        for v in custom:
+            st.write(f"• {v['name']} ({v['city']})")
+    else:
+        st.write("*No custom venues yet*")
 
 st.divider()
-st.caption(f"EventBot Pro v5 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.caption(f"EventBot Pro v6 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
