@@ -172,11 +172,11 @@ with tab_search:
         venue_names += [v["name"] for v in load_custom_venues()]
         venue_names = sorted(list(set(venue_names)))
 
-        selected_venue = st.selectbox("Venue", venue_names)
+        selected_venue = st.selectbox("Venue", venue_names, key="search_venue_key")
 
         # City selection
         cities = ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "Bethesda"]
-        selected_city = st.selectbox("City", cities)
+        selected_city = st.selectbox("City", cities, key="search_city_key")
 
         st.markdown("**Date Range**")
 
@@ -265,11 +265,11 @@ with tab_results:
 
         with col_f2:
             cities = list(set([r.get("city", "") for r in results if r.get("city")]))
-            selected_city_filter = st.multiselect("Cities", cities, default=cities)
+            selected_city_filter = st.multiselect("Cities", cities, default=cities, key="results_cities_key")
 
         with col_f3:
-            has_contact = st.checkbox("Has contact")
-            has_email = st.checkbox("Has email")
+            has_contact = st.checkbox("Has contact", key="results_contact_key")
+            has_email = st.checkbox("Has email", key="results_email_key")
 
         # Filter results
         filtered = results
@@ -385,7 +385,7 @@ with tab_manage:
         venue_name = st.text_input("Venue Name", placeholder="e.g., Marriott Downtown")
 
     with col_v2:
-        venue_city = st.selectbox("City", ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "Bethesda"])
+        venue_city = st.selectbox("City", ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "Bethesda"], key="manage_city_key")
 
     if st.button("✅ Add Venue", use_container_width=True):
         if venue_name:
