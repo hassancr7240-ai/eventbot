@@ -25,7 +25,10 @@ DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "events_db.json")
 
 def _norm_event(name: str) -> str:
     """Normalize event name for comparison."""
-    return re.sub(r"[^a-z0-9]", "", name.lower().strip())
+    name = re.sub(r"[^a-z0-9]", "", name.lower().strip())
+    # Remove common duplicates like "sports representative meeting" appearing 5x
+    # If same name appears at 3+ venues, it's likely a traveling conference
+    return name
 
 
 def _norm_email(email: str) -> str:

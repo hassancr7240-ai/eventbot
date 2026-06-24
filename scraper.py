@@ -700,30 +700,41 @@ def scrape_venue(
     stop_event=None,
 ) -> list[dict]:
     """
-    Fast scrape: Skip Google Search (slow!), use only industry sources.
-    Industry sources are faster, more reliable, and return real events.
+    ULTRA-FAST scrape with timeout per venue.
+    Skips slow venues to prevent hanging.
     """
-    results = []
-    logger.info("Scraping %s (fast mode: industry sources only)", venue["name"])
+    import signal
 
-    # Just use industry crawlers — they're fast and return real events
+    results = []
+    logger.info("Scraping %s (fast mode: 30s timeout)", venue["name"])
+
+    # Prioritize fast crawlers first
     industry_crawlers = [
-        crawl_eventbrite,
+        crawl_conferencenext,  # First — returns events instantly
+        crawl_eventbrite,      # Fast, has results
+        crawl_10times,         # Medium speed
         crawl_allconferencealert,
-        crawl_10times,
-        crawl_conferencenext,
         crawl_iaee,
         crawl_pcma,
         crawl_eventsinamerica,
     ]
+
+    start_time = time.time()
+    timeout_per_venue = 30  # Seconds — if venue takes > 30s, skip it
 
     for i, crawler in enumerate(industry_crawlers):
         if stop_event and stop_event.is_set():
             logger.info("Stop signal — halting.")
             break
 
+        # Check if we're over timeout for this venue
+        elapsed = time.time() - start_time
+        if elapsed > timeout_per_venue:
+            logger.warning(f"  Timeout reached for {venue['name']} ({elapsed:.0f}s) — skipping remaining crawlers")
+            break
+
         if progress_callback:
-            progress_callback(i + 1, len(industry_crawlers), f"Crawling {crawler.__name__}...")
+            progress_callback(i + 1, len(industry_crawlers), f"{crawler.__name__}...")
 
         try:
             recs = crawler(venue)
@@ -733,9 +744,9 @@ def scrape_venue(
         except Exception as e:
             logger.warning(f"  {crawler.__name__} failed: {e}")
 
-        _polite_delay(1.0, 2.0)
+        _polite_delay(0.5, 1.0)  # Shorter delay
 
-    logger.info("Done %s — %d records from industry sources", venue["name"], len(results))
+    logger.info("Done %s — %d records in %.1fs", venue["name"], len(results), time.time() - start_time)
     return results
 
 
@@ -873,7 +884,7 @@ def crawl_10times(venue: dict) -> list[dict]:
 
 
 def crawl_conferencenext(venue: dict) -> list[dict]:
-    """conferencenext.com — confirmed returns 280 links."""
+    """conferencenext.com — FAST mode: extract events directly from listing page (no external links)."""
     city_map = {
         "Washington": "washington-dc",
         "National Harbor": "washington-dc",
@@ -885,26 +896,45 @@ def crawl_conferencenext(venue: dict) -> list[dict]:
     city_slug = city_map.get(venue["city"], venue["city"].lower().replace(" ", "-"))
     url = f"https://conferencenext.com/conferences/{city_slug}"
     results = []
-    seen_urls: set = set()
     seen_events: set = set()
 
     soup = fetch(url)
     if not soup:
         return []
 
-    for a in soup.find_all("a", href=True):
-        href = a.get("href", "")
-        if not href.startswith("http"):
-            href = _resolve_url("https://conferencenext.com", href)
-        if not href or not _is_useful_url(href):
+    # Extract event titles and dates directly from listing (fast, no external crawl)
+    for div in soup.find_all("div", class_="event-item"):
+        title_elem = div.find("a")
+        if not title_elem:
             continue
-        # Skip internal conferencenext pages, follow external event links
-        if "conferencenext.com" not in href:
-            _polite_delay(1.5, 2.5)
-            recs = process_url(href, venue, seen_urls, seen_events)
-            results.extend(recs)
-            if len(results) >= 25:
-                break
+
+        event_name = title_elem.get_text(strip=True)
+        if not event_name or event_name in seen_events:
+            continue
+
+        seen_events.add(event_name)
+
+        # Extract dates if available
+        date_elem = div.find("span", class_="date")
+        event_dates = date_elem.get_text(strip=True) if date_elem else ""
+
+        results.append({
+            "venue_name": venue["name"],
+            "city": venue["city"],
+            "state": venue["state"],
+            "event_name": event_name,
+            "event_dates": event_dates,
+            "event_url": url,
+            "contact_person": "",
+            "contact_title": "",
+            "email": "",
+            "phone": "",
+            "status": "New",
+            "scraped_at": datetime.now().isoformat(),
+        })
+
+        if len(results) >= 20:
+            break
 
     return results
 
