@@ -7,6 +7,7 @@ Fast, reliable, real results
 import json
 import os
 import requests
+import time
 from datetime import datetime
 from bs4 import BeautifulSoup
 import logging
@@ -34,72 +35,101 @@ def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str
     Scrape Eventbrite for events
     LIVE: Saves results to file as they're found so UI updates in real-time
     """
-    results_file = os.path.join(os.path.dirname(__file__), "data", "current_results.json")
     results = load_results()
 
     try:
-        # Eventbrite API-like URL construction
+        # Eventbrite city mapping
         city_slug = city.lower().replace(" ", "-")
 
-        # Search URL
-        url = f"https://www.eventbrite.com/d/{city_slug}--{city_slug}/events/?start_date={start_date}&end_date={end_date}"
-
-        logger.info(f"Fetching: {url}")
+        # Search URL - try multiple variations
+        urls = [
+            f"https://www.eventbrite.com/d/{city_slug}--{city_slug}/events/?start_date={start_date}&end_date={end_date}",
+            f"https://www.eventbrite.com/d/{city_slug}/events/?start_date={start_date}&end_date={end_date}",
+        ]
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code != 200:
-            logger.warning(f"HTTP {resp.status_code}")
-            return results
-
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        # Find event cards
-        for card in soup.find_all("div", {"data-testid": "event-card"}):
+        for url in urls:
             try:
-                # Event name
-                title_elem = card.find("h3")
-                if not title_elem:
+                logger.info(f"Fetching: {url}")
+
+                resp = requests.get(url, headers=headers, timeout=15)
+                if resp.status_code != 200:
+                    logger.warning(f"HTTP {resp.status_code} for {url}")
                     continue
 
-                event_name = title_elem.get_text(strip=True)
+                soup = BeautifulSoup(resp.text, "html.parser")
 
-                # Date
-                date_elem = card.find("span", {"data-testid": "event-date-time-inner"})
-                event_date = date_elem.get_text(strip=True) if date_elem else ""
+                # Try multiple selectors for event cards
+                cards = soup.find_all("div", {"data-testid": "event-card"})
+                if not cards:
+                    # Fallback selector
+                    cards = soup.find_all("article", class_="event-card")
 
-                # Skip if no name
-                if len(event_name) < 3:
+                logger.info(f"Found {len(cards)} event cards")
+
+                if not cards:
                     continue
 
-                event = {
-                    "event_name": event_name,
-                    "event_dates": event_date,
-                    "venue_name": venue_name,
-                    "city": city,
-                    "contact_person": "",
-                    "contact_title": "",
-                    "email": "",
-                    "phone": "",
-                    "event_url": url,
-                    "scraped_at": datetime.now().isoformat()
-                }
+                # Find event cards
+                for card in cards:
+                    try:
+                        # Event name - try multiple selectors
+                        title_elem = card.find("h3") or card.find("h2")
+                        if not title_elem:
+                            title_elem = card.find("a", class_="event-name")
 
-                # Check if already exists
-                existing_names = set([e["event_name"].lower() for e in results])
-                if event_name.lower() not in existing_names:
-                    results.append(event)
-                    save_results(results)  # SAVE IMMEDIATELY so UI sees it
-                    logger.info(f"  Found & saved: {event_name[:60]}")
+                        if not title_elem:
+                            continue
+
+                        event_name = title_elem.get_text(strip=True)
+
+                        # Date
+                        date_elem = card.find("span", {"data-testid": "event-date-time-inner"})
+                        if not date_elem:
+                            date_elem = card.find("span", class_="event-date")
+
+                        event_date = date_elem.get_text(strip=True) if date_elem else ""
+
+                        # Skip if no name or too short
+                        if len(event_name) < 3:
+                            continue
+
+                        event = {
+                            "event_name": event_name,
+                            "event_dates": event_date,
+                            "venue_name": venue_name,
+                            "city": city,
+                            "contact_person": "",
+                            "contact_title": "",
+                            "email": "",
+                            "phone": "",
+                            "event_url": url,
+                            "scraped_at": datetime.now().isoformat()
+                        }
+
+                        # Check if already exists
+                        existing_names = set([e["event_name"].lower() for e in results])
+                        if event_name.lower() not in existing_names:
+                            results.append(event)
+                            save_results(results)  # SAVE IMMEDIATELY so UI sees it
+                            logger.info(f"  ✅ Found & saved: {event_name[:60]}")
+                            time.sleep(0.2)  # Small delay between saves
+
+                    except Exception as e:
+                        logger.debug(f"Error parsing card: {e}")
+                        continue
+
+                if results:  # Stop if we found something
+                    break
 
             except Exception as e:
-                logger.debug(f"Error parsing card: {e}")
+                logger.warning(f"Error with URL {url}: {e}")
                 continue
 
-        logger.info(f"Total from Eventbrite: {len(results)}")
+        logger.info(f"Total scraped: {len(results)}")
 
     except Exception as e:
         logger.error(f"Eventbrite scrape error: {e}")

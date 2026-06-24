@@ -215,14 +215,14 @@ with tab_search:
         st.markdown("""
         <div class="status-running">
         <strong>⏳ Searching...</strong><br>
-        Results appear below as they are discovered. Refresh to see updates.
+        Results appear below as they are discovered.
         </div>
         """, unsafe_allow_html=True)
 
         # Live results container
         results_placeholder = st.empty()
 
-        # Run search in background with LIVE updates
+        # Run search in background
         def run_search_live():
             try:
                 from scraper import scrape_eventbrite
@@ -235,41 +235,38 @@ with tab_search:
                 st.session_state.searching = False
 
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.session_state.search_error = str(e)
                 st.session_state.searching = False
 
+        # Start search thread if not already running
         if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
             thread = threading.Thread(target=run_search_live, daemon=True)
             thread.start()
             st.session_state.search_thread = thread
 
-            # Live update loop - refresh every 1 second to show new results
-            for i in range(300):  # Max 5 minutes
-                time.sleep(1)
+        # Show live results - update every 500ms
+        with results_placeholder.container():
+            current_results = load_results()
 
-                # Load current results
-                current_results = load_results()
+            if current_results:
+                st.markdown(f"**✅ Found {len(current_results)} events so far**")
 
-                if current_results:
-                    with results_placeholder.container():
-                        st.markdown(f"**Found {len(current_results)} events so far...**")
+                df_live = []
+                for r in current_results[-10:]:  # Show last 10
+                    df_live.append({
+                        "Event": r.get("event_name", "")[:50],
+                        "Date": r.get("event_dates", ""),
+                        "Venue": r.get("venue_name", "")
+                    })
 
-                        df_live = []
-                        for r in current_results[-10:]:  # Show last 10
-                            df_live.append({
-                                "Event": r.get("event_name", "")[:50],
-                                "Date": r.get("event_dates", ""),
-                                "Venue": r.get("venue_name", "")
-                            })
+                if df_live:
+                    st.dataframe(df_live, use_container_width=True, height=300)
+            else:
+                st.info("Waiting for first results... (may take 30 seconds)")
 
-                        if df_live:
-                            st.dataframe(df_live, use_container_width=True)
-
-                # Check if search is done
-                if not st.session_state.get("searching", False):
-                    break
-
-                st.rerun()
+        # Auto-refresh UI every 500ms using sleep and rerun
+        time.sleep(0.5)
+        st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: RESULTS
