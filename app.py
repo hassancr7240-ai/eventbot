@@ -341,7 +341,7 @@ with tab2:
         st.markdown(f"**Total: {len(all_events)} events**")
 
         # Filters
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             search_term = st.text_input("🔍 Search event or venue:")
@@ -350,6 +350,8 @@ with tab2:
             venue_filter = st.selectbox("Filter by venue:", venues_list)
         with col3:
             status_filter = st.selectbox("Filter by status:", ["All", "New", "Emailed", "Booked"])
+        with col4:
+            hide_dups = st.checkbox("🚫 Hide Duplicates", value=False, help="Show only unique event names")
 
         # Apply filters
         filtered = all_events
@@ -362,6 +364,17 @@ with tab2:
 
         if status_filter != "All":
             filtered = [e for e in filtered if e["Status"] == status_filter]
+
+        # Hide duplicates (same event name appears multiple venues)
+        if hide_dups:
+            seen_events = set()
+            unique_filtered = []
+            for e in filtered:
+                event_key = e["Event"].lower().strip()
+                if event_key not in seen_events:
+                    seen_events.add(event_key)
+                    unique_filtered.append(e)
+            filtered = unique_filtered
 
         st.markdown(f"**Showing {len(filtered)} of {len(all_events)} events**")
 
