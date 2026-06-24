@@ -32,9 +32,10 @@ def save_results(results):
 def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str) -> list:
     """
     Scrape Eventbrite for events
-    Much faster and more reliable than Google Search
+    LIVE: Saves results to file as they're found so UI updates in real-time
     """
-    results = []
+    results_file = os.path.join(os.path.dirname(__file__), "data", "current_results.json")
+    results = load_results()
 
     try:
         # Eventbrite API-like URL construction
@@ -74,7 +75,7 @@ def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str
                 if len(event_name) < 3:
                     continue
 
-                results.append({
+                event = {
                     "event_name": event_name,
                     "event_dates": event_date,
                     "venue_name": venue_name,
@@ -85,9 +86,14 @@ def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str
                     "phone": "",
                     "event_url": url,
                     "scraped_at": datetime.now().isoformat()
-                })
+                }
 
-                logger.info(f"  Found: {event_name[:60]}")
+                # Check if already exists
+                existing_names = set([e["event_name"].lower() for e in results])
+                if event_name.lower() not in existing_names:
+                    results.append(event)
+                    save_results(results)  # SAVE IMMEDIATELY so UI sees it
+                    logger.info(f"  Found & saved: {event_name[:60]}")
 
             except Exception as e:
                 logger.debug(f"Error parsing card: {e}")

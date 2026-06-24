@@ -219,21 +219,19 @@ with tab_search:
         </div>
         """, unsafe_allow_html=True)
 
-        # Run search in background
-        def run_search():
+        # Live results container
+        results_placeholder = st.empty()
+
+        # Run search in background with LIVE updates
+        def run_search_live():
             try:
-                start_str = start_date.strftime("%Y-%m-%d")
-                end_str = end_date.strftime("%Y-%m-%d")
+                from scraper import scrape_eventbrite
 
-                cmd = [
-                    "python", "scraper_working.py",
-                    "--venue", selected_venue,
-                    "--city", selected_city,
-                    "--start", start_str,
-                    "--end", end_str
-                ]
+                # Scrape and save results in real-time
+                events = scrape_eventbrite(selected_venue, selected_city,
+                                          start_date.strftime("%Y-%m-%d"),
+                                          end_date.strftime("%Y-%m-%d"))
 
-                subprocess.run(cmd, cwd=os.path.dirname(__file__), timeout=600)
                 st.session_state.searching = False
 
             except Exception as e:
@@ -241,11 +239,37 @@ with tab_search:
                 st.session_state.searching = False
 
         if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
-            thread = threading.Thread(target=run_search, daemon=True)
+            thread = threading.Thread(target=run_search_live, daemon=True)
             thread.start()
             st.session_state.search_thread = thread
-            time.sleep(2)
-            st.rerun()
+
+            # Live update loop - refresh every 1 second to show new results
+            for i in range(300):  # Max 5 minutes
+                time.sleep(1)
+
+                # Load current results
+                current_results = load_results()
+
+                if current_results:
+                    with results_placeholder.container():
+                        st.markdown(f"**Found {len(current_results)} events so far...**")
+
+                        df_live = []
+                        for r in current_results[-10:]:  # Show last 10
+                            df_live.append({
+                                "Event": r.get("event_name", "")[:50],
+                                "Date": r.get("event_dates", ""),
+                                "Venue": r.get("venue_name", "")
+                            })
+
+                        if df_live:
+                            st.dataframe(df_live, use_container_width=True)
+
+                # Check if search is done
+                if not st.session_state.get("searching", False):
+                    break
+
+                st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: RESULTS
