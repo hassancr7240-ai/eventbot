@@ -1,6 +1,6 @@
 """
-EventBot Pro v3 - Complete Smooth Experience
-Auto-save venues | Live tracker | Quick export | Daily schedule
+EventBot Pro - Production Edition
+Clean, Simple, Fast | No clutter | Real results
 """
 
 import streamlit as st
@@ -10,291 +10,225 @@ import subprocess
 import threading
 import time
 from datetime import datetime
-from deduplicator import get_stats, load_db, update_record
+from deduplicator import get_stats, load_db
 from venues import VENUES
+import pandas as pd
 import csv
 from io import StringIO
 
-st.set_page_config(page_title="EventBot Pro", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="EventBot Pro",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+    menu_items={"About": "EventBot Pro v4 - Production"}
+)
 
-# ── CUSTOM CSS ─────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# CUSTOM THEME
+# ═══════════════════════════════════════════════════════════════════════════════
+
 st.markdown("""
 <style>
-* { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.main { background: #f8f9fa; }
-.metric-card {
-    background: white; padding: 20px; border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
-    border-top: 4px solid #667eea;
+* { font-family: 'Segoe UI', system-ui, sans-serif; }
+body { background: #ffffff; }
+.main { background: #ffffff; }
+
+/* Clean header */
+h1 { color: #1a1a1a; font-size: 2rem; margin-bottom: 0.5rem; }
+h2 { color: #2d2d2d; font-size: 1.4rem; margin-top: 1.5rem; }
+
+/* Cards */
+.metric-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
 }
-.metric-num { font-size: 36px; font-weight: bold; color: #667eea; }
-.metric-lbl { font-size: 13px; color: #999; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
-.success-box { background: #d4edda; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; }
-.warning-box { background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; }
-.info-box { background: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8; }
-.event-row { padding: 12px; border-bottom: 1px solid #eee; hover: background #f5f5f5; }
-.event-row:hover { background: #f5f5f5; cursor: pointer; }
+.metric-num { font-size: 2.5rem; font-weight: bold; }
+.metric-label { font-size: 0.9rem; opacity: 0.9; margin-top: 5px; }
+
+/* Status boxes */
+.success-box { background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px; }
+.warning-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; }
+.error-box { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; border-radius: 5px; }
+.info-box { background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; border-radius: 5px; }
+
+/* Buttons */
+.stButton > button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: 600;
+    width: 100%;
+}
+.stButton > button:hover {
+    opacity: 0.9;
+}
+
+/* Tables */
+.dataframe { font-size: 0.9rem; }
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] { border-bottom: 2px solid #e0e0e0; }
+.stTabs [aria-selected="true"] { color: #667eea; border-bottom: 3px solid #667eea; }
+
 </style>
 """, unsafe_allow_html=True)
 
-# ── PASSWORD ───────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTHENTICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
 PASSWORD = "workrbee2026"
 
-def check_password():
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
+def check_auth():
+    if "auth" not in st.session_state:
+        st.session_state.auth = False
 
-    if not st.session_state.authenticated:
-        st.markdown("# 🔒 EventBot Pro")
+    if not st.session_state.auth:
+        st.markdown("<h1 style='text-align: center; margin-top: 10rem;'>🔒 EventBot Pro</h1>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            pwd = st.text_input("Enter Password", type="password", placeholder="Password...")
+            pwd = st.text_input("Enter Password", type="password")
             if st.button("Login", use_container_width=True):
                 if pwd == PASSWORD:
-                    st.session_state.authenticated = True
+                    st.session_state.auth = True
                     st.rerun()
                 else:
-                    st.error("Incorrect password")
-        return False
-    return True
+                    st.error("❌ Wrong password")
+        st.stop()
 
-if not check_password():
-    st.stop()
+check_auth()
 
-# ── SESSION STATE ──────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# SESSION STATE
+# ═══════════════════════════════════════════════════════════════════════════════
+
 if "bot_running" not in st.session_state:
     st.session_state.bot_running = False
-if "bot_progress" not in st.session_state:
-    st.session_state.bot_progress = ""
 if "selected_venue" not in st.session_state:
-    st.session_state.selected_venue = "All"
+    st.session_state.selected_venue = None
 
-# ── HELPER: Load venues from venues.py ─────────────────────────────────────────
-def get_venue_list():
-    """Get list of all venue names"""
-    return sorted(list(set([v.get("name", "") for v in VENUES])))
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEADER
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ── HELPER: Add venue to venues.py ─────────────────────────────────────────────
-def add_venue_to_file(name: str, address: str, city: str, state: str) -> bool:
-    """Add venue directly to venues.py file"""
-    try:
-        venues_file = os.path.join(os.path.dirname(__file__), "venues.py")
-
-        # Read current venues.py
-        with open(venues_file, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        # Find the VENUES list and add before the closing bracket
-        new_entry = f'''    {{
-        "city_group": "{city} {state}",
-        "name": "{name}",
-        "address": "{address}",
-        "city": "{city}",
-        "state": "{state}",
-        "search_name": "{name} {city} events",
-        "source_urls": [],
-    }},
-'''
-
-        # Insert before the last ] of VENUES
-        insert_pos = content.rfind("]")
-        if insert_pos > 0:
-            new_content = content[:insert_pos] + new_entry + content[insert_pos:]
-            with open(venues_file, "w", encoding="utf-8") as f:
-                f.write(new_content)
-            return True
-    except Exception as e:
-        print(f"Error adding venue: {e}")
-    return False
-
-# ── HELPER: Export to CSV and upload to Google Sheets ─────────────────────────
-def export_to_csv():
-    """Generate CSV from database"""
-    db = load_db()
-    all_events = []
-
-    for venue, events in db.items():
-        for event in events:
-            all_events.append({
-                "Venue": event.get("venue_name", ""),
-                "City": event.get("city", ""),
-                "State": event.get("state", ""),
-                "Event Name": event.get("event_name", ""),
-                "Dates": event.get("event_dates", ""),
-                "Contact": event.get("contact_person", ""),
-                "Title": event.get("contact_title", ""),
-                "Email": event.get("email", ""),
-                "Phone": event.get("phone", ""),
-                "Status": event.get("status", "New"),
-                "Updated": event.get("last_updated", ""),
-            })
-
-    if not all_events:
-        return None
-
-    # Create CSV string
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=all_events[0].keys())
-    writer.writeheader()
-    writer.writerows(all_events)
-    return output.getvalue()
-
-def upload_to_google_sheets_simple():
-    """Upload via simple method - for now just return CSV"""
-    csv_data = export_to_csv()
-    if csv_data:
-        return csv_data
-    return None
-
-# ── HEADER ─────────────────────────────────────────────────────────────────────
 st.markdown("# 🤖 EventBot Pro")
-st.markdown("Automated event discovery across DC, Baltimore, Philadelphia & more")
+st.markdown("**Conference & Tradeshow Event Discovery**")
+st.divider()
 
-# Show schedule
-schedule_info = """
-**📅 Daily Schedule:** Runs at 6:00 AM every morning
-**⏱️ Search Time:** 15-20 minutes (all 62 venues)
-**📊 Last Run:** Check Live Tracker below
-"""
-st.markdown(schedule_info)
-st.markdown("---")
+# ─────────────────────────────────────────────────────────────────────────────
+# DASHBOARD METRICS
+# ─────────────────────────────────────────────────────────────────────────────
 
-# ── TOP METRICS ────────────────────────────────────────────────────────────────
-s = get_stats()
+stats = get_stats()
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.markdown(f'<div class="metric-card"><div class="metric-num">{s["total_events"]}</div><div class="metric-lbl">Events Found</div></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="metric-box">
+        <div class="metric-num">{stats['total_events']}</div>
+        <div class="metric-label">Events Found</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col2:
-    st.markdown(f'<div class="metric-card"><div class="metric-num">{s["total_contacts"]}</div><div class="metric-lbl">Contacts</div></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="metric-box">
+        <div class="metric-num">{stats['total_contacts']}</div>
+        <div class="metric-label">Contacts</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col3:
-    st.markdown(f'<div class="metric-card"><div class="metric-num">{s["total_emailed"]}</div><div class="metric-lbl">Emailed</div></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="metric-box">
+        <div class="metric-num">{stats['total_emailed']}</div>
+        <div class="metric-label">Emailed</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col4:
-    st.markdown(f'<div class="metric-card"><div class="metric-num">{len(VENUES)}</div><div class="metric-lbl">Venues</div></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="metric-box">
+        <div class="metric-num">{len(VENUES)}</div>
+        <div class="metric-label">Venues</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("---")
-
-# ── TABS ───────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["🚀 Run Bot", "📋 Live Tracker", "➕ Add Venues", "📥 Export & Upload"])
+st.divider()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1: RUN BOT (with full filters)
+# MAIN TABS
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab1:
-    st.markdown("## 🚀 Start Bot Search")
-    st.markdown("**Customize your search before running**")
 
-    # ── FILTER SECTION ─────────────────────────────────────────────────────────
-    st.markdown("### ⚙️ Search Filters")
+tab_run, tab_results, tab_export = st.tabs(["🚀 Run Search", "📊 View Results", "📥 Export"])
 
-    col1, col2 = st.columns(2)
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 1: RUN SEARCH
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab_run:
+    st.markdown("## 🚀 Start Search")
+
+    col1, col2 = st.columns([1, 2])
 
     with col1:
+        st.markdown("### Settings")
+
+        # Venue selection
+        venue_names = sorted(list(set([v["name"] for v in VENUES])))
+        selected_venue = st.selectbox(
+            "Select Venue",
+            venue_names,
+            help="Choose a venue to search for events"
+        )
+
+        # Year selection
         st.markdown("**Year Range**")
-        start_year = st.slider("Start Year", 2024, 2030, 2026, help="Search from this year")
-        end_year = st.slider("End Year", 2024, 2030, 2026, help="Search until this year")
+        start_year = st.slider("Start", 2026, 2030, 2026)
+        end_year = st.slider("End", 2026, 2030, 2026)
 
         if start_year > end_year:
             st.error("Start year must be before end year")
-            start_year, end_year = end_year, start_year
 
     with col2:
-        st.markdown("**Venues**")
-        venue_list = get_venue_list()
-        search_mode = st.radio("Search:", ["All Venues", "Select Specific"], horizontal=True)
+        st.markdown("### How It Works")
+        st.info("""
+        ✅ **Searches** the selected venue across multiple sources
 
-        if search_mode == "Select Specific":
-            selected_venues = st.multiselect("Choose venues:", venue_list, default=venue_list[:5])
-            venues_to_search = selected_venues if selected_venues else venue_list
-        else:
-            venues_to_search = "all"
-            st.info(f"✅ Searching all {len(VENUES)} venues")
+        ✅ **Extracts** event details, dates, and contact information
 
-    st.markdown("---")
+        ✅ **Deduplicates** to remove duplicate events
 
-    # ── CITY FILTER ────────────────────────────────────────────────────────────
-    st.markdown("### 🌍 Cities")
+        ✅ **Saves** results to database automatically
 
-    cities = sorted(list(set([v.get("city_group", "") for v in VENUES])))
-    cols = st.columns(4)
-
-    selected_cities = []
-    for idx, city in enumerate(cities):
-        with cols[idx % 4]:
-            if st.checkbox(city, value=True, key=f"city_{city}"):
-                selected_cities.append(city)
+        ⏱️ **Takes** 5-15 minutes depending on venue
+        """)
 
     st.markdown("---")
 
-    # ── QUICK PRESETS ─────────────────────────────────────────────────────────
-    st.markdown("### ⚡ Quick Presets")
+    # Run button
+    col1, col2 = st.columns([2, 1])
+    with col2:
+        if st.button("▶️ START SEARCH", use_container_width=True, key="run_btn"):
+            st.session_state.bot_running = True
+            st.session_state.selected_venue = selected_venue
+            st.rerun()
 
-    preset_col1, preset_col2, preset_col3 = st.columns(3)
-
-    with preset_col1:
-        if st.button("🟢 Fast (Today Only)", use_container_width=True):
-            st.session_state.preset = "today"
-
-    with preset_col2:
-        if st.button("🟡 Standard (2026)", use_container_width=True):
-            st.session_state.preset = "2026"
-
-    with preset_col3:
-        if st.button("🔴 Full (2024-2030)", use_container_width=True):
-            st.session_state.preset = "full"
-
-    # Apply preset
-    if "preset" in st.session_state:
-        if st.session_state.preset == "today":
-            from datetime import date
-            today = date.today()
-            st.info(f"🟢 Fast mode: Searching events for {today.strftime('%B %d, %Y')} only")
-            start_year = end_year = today.year
-        elif st.session_state.preset == "2026":
-            st.info("🟡 Standard mode: Searching all 2026 events")
-            start_year = end_year = 2026
-        elif st.session_state.preset == "full":
-            st.info("🔴 Full mode: Searching 2024-2030")
-            start_year, end_year = 2024, 2030
-
-    st.markdown("---")
-
-    # ── START BOT ──────────────────────────────────────────────────────────────
-    st.markdown("### Summary")
-    summary_col1, summary_col2, summary_col3 = st.columns(3)
-
-    with summary_col1:
-        st.metric("Years", f"{start_year}-{end_year}")
-
-    with summary_col2:
-        if venues_to_search == "all":
-            st.metric("Venues", len(VENUES))
-        else:
-            st.metric("Venues", len(venues_to_search))
-
-    with summary_col3:
-        st.metric("Cities", len(selected_cities))
-
-    st.markdown("---")
-
-    if st.button("▶️ START BOT SEARCH", use_container_width=True, key="run_bot_btn"):
-        st.session_state.bot_running = True
-        st.session_state.search_config = {
-            "start_year": start_year,
-            "end_year": end_year,
-            "venues": venues_to_search,
-            "cities": selected_cities
-        }
-        st.rerun()
-
+    # Running status
     if st.session_state.bot_running:
-        st.markdown("<div class='warning-box'><strong>⏳ Bot is searching...</strong><br>Check Live Tracker for real-time results. Do NOT close this page.</div>", unsafe_allow_html=True)
+        st.markdown("""
+        <div class='warning-box'>
+        <strong>⏳ Search in progress...</strong><br>
+        Go to "View Results" tab to see events as they're discovered.
+        </div>
+        """, unsafe_allow_html=True)
 
-        def run_bot_background():
+        def run_search_background():
             try:
                 cmd = ["python", "scheduler.py", "--run-now", "--years", str(start_year), str(end_year)]
                 result = subprocess.run(
@@ -304,205 +238,189 @@ with tab1:
                     text=True,
                     timeout=3600
                 )
-                st.session_state.bot_progress = "✅ Bot completed!"
                 st.session_state.bot_running = False
             except Exception as e:
-                st.session_state.bot_progress = f"❌ Error: {str(e)}"
+                st.error(f"Error: {e}")
                 st.session_state.bot_running = False
 
-        thread = threading.Thread(target=run_bot_background, daemon=True)
+        thread = threading.Thread(target=run_search_background, daemon=True)
         thread.start()
-
-        time.sleep(3)
+        time.sleep(2)
         st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 2: LIVE TRACKER (with real-time updates)
+# TAB 2: VIEW RESULTS
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab2:
-    st.markdown("## 📋 Live Event Tracker")
+
+with tab_results:
+    st.markdown("## 📊 Event Results")
 
     db = load_db()
-    all_events = []
 
-    for venue, events in db.items():
-        for event in events:
-            all_events.append({
-                "Venue": event.get("venue_name", ""),
-                "City": event.get("city", ""),
-                "Event": event.get("event_name", ""),
-                "Dates": event.get("event_dates", ""),
-                "Email": event.get("email", ""),
-                "Phone": event.get("phone", ""),
-                "Status": event.get("status", "New"),
-            })
-
-    if all_events:
-        st.markdown(f"**Total: {len(all_events)} events**")
-
-        # Filters
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            search_term = st.text_input("🔍 Search event or venue:")
-        with col2:
-            venues_list = ["All"] + get_venue_list()
-            venue_filter = st.selectbox("Filter by venue:", venues_list)
-        with col3:
-            status_filter = st.selectbox("Filter by status:", ["All", "New", "Emailed", "Booked"])
-        with col4:
-            hide_dups = st.checkbox("🚫 Hide Duplicates", value=False, help="Show only unique event names")
-
-        # Apply filters
-        filtered = all_events
-
-        if search_term:
-            filtered = [e for e in filtered if search_term.lower() in e["Event"].lower() or search_term.lower() in e["Venue"].lower()]
-
-        if venue_filter != "All":
-            filtered = [e for e in filtered if e["Venue"] == venue_filter]
-
-        if status_filter != "All":
-            filtered = [e for e in filtered if e["Status"] == status_filter]
-
-        # Hide duplicates (same event name appears multiple venues)
-        if hide_dups:
-            seen_events = set()
-            unique_filtered = []
-            for e in filtered:
-                event_key = e["Event"].lower().strip()
-                if event_key not in seen_events:
-                    seen_events.add(event_key)
-                    unique_filtered.append(e)
-            filtered = unique_filtered
-
-        st.markdown(f"**Showing {len(filtered)} of {len(all_events)} events**")
-
-        # Display as table with click-able rows
-        st.dataframe(filtered, use_container_width=True, height=400)
-
-        # Quick stats
-        st.markdown("---")
-        st.markdown("### Quick Stats")
-        stat_col1, stat_col2, stat_col3 = st.columns(3)
-
-        with stat_col1:
-            new_count = len([e for e in filtered if e["Status"] == "New"])
-            st.metric("New Events", new_count)
-
-        with stat_col2:
-            emailed_count = len([e for e in filtered if e["Status"] == "Emailed"])
-            st.metric("Emailed", emailed_count)
-
-        with stat_col3:
-            venues_count = len(set([e["Venue"] for e in filtered]))
-            st.metric("Unique Venues", venues_count)
-
+    if not db or sum(len(events) for events in db.values()) == 0:
+        st.info("📭 No events yet. Click 'Run Search' to get started!")
     else:
-        st.info("📭 No events yet. Click 'Run Bot' to start searching!")
+        # Build events list
+        all_events = []
+        for venue_name, events in db.items():
+            for event in events:
+                all_events.append({
+                    "Date": event.get("event_dates", ""),
+                    "Event": event.get("event_name", ""),
+                    "Venue": event.get("venue_name", ""),
+                    "City": event.get("city", ""),
+                    "Contact": event.get("contact_person", ""),
+                    "Title": event.get("contact_title", ""),
+                    "Email": event.get("email", ""),
+                    "Phone": event.get("phone", ""),
+                })
 
-    # Auto-refresh
-    if st.session_state.bot_running:
-        time.sleep(5)
-        st.rerun()
+        if all_events:
+            # Filters
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                search_term = st.text_input("🔍 Search events", placeholder="Event name, venue, contact...")
+            with col2:
+                venue_filter = st.selectbox("Venue", ["All"] + sorted(list(set([e["Venue"] for e in all_events]))))
+            with col3:
+                city_filter = st.selectbox("City", ["All"] + sorted(list(set([e["City"] for e in all_events]))))
+
+            # Apply filters
+            filtered = all_events
+
+            if search_term:
+                filtered = [e for e in filtered if search_term.lower() in str(e).lower()]
+
+            if venue_filter != "All":
+                filtered = [e for e in filtered if e["Venue"] == venue_filter]
+
+            if city_filter != "All":
+                filtered = [e for e in filtered if e["City"] == city_filter]
+
+            # Display
+            st.markdown(f"**Showing {len(filtered)} of {len(all_events)} events**")
+
+            # Create DataFrame
+            df = pd.DataFrame(filtered)
+            df = df.sort_values(by=["Date", "Event"]) if "Date" in df.columns else df
+
+            st.dataframe(df, use_container_width=True, height=500)
+
+            # Quick stats
+            st.markdown("---")
+            st.markdown("### Quick Stats")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Total Events", len(filtered))
+
+            with col2:
+                has_contact = len([e for e in filtered if e["Contact"]])
+                st.metric("With Contact", has_contact)
+
+            with col3:
+                has_email = len([e for e in filtered if e["Email"]])
+                st.metric("With Email", has_email)
+
+        else:
+            st.warning("⚠️ No events in database")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 3: ADD VENUES (auto-save)
+# TAB 3: EXPORT
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab3:
-    st.markdown("## ➕ Add New Venue")
-    st.markdown("Add venues to search. They'll be included in the next bot run.")
 
-    with st.form("add_venue_form"):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            name = st.text_input("Venue Name *", placeholder="e.g., Marriott Ballroom")
-            address = st.text_input("Address *", placeholder="e.g., 123 Main St")
-
-        with col2:
-            city = st.text_input("City *", placeholder="e.g., Baltimore")
-            state = st.selectbox("State *", ["MD", "DC", "PA", "DE", "VA", "NJ", "NY", "Other"])
-
-        if st.form_submit_button("✅ Add Venue", use_container_width=True):
-            if name and address and city and state:
-                # Auto-save to venues.py
-                if add_venue_to_file(name, address, city, state):
-                    st.markdown(f"<div class='success-box'><strong>✅ Venue Added!</strong><br>{name}, {city}, {state}<br>Will be searched on next bot run.</div>", unsafe_allow_html=True)
-                else:
-                    st.error("Could not add venue. Please try again.")
-            else:
-                st.error("Please fill all fields marked with *")
-
-    st.markdown("---")
-    st.markdown("### Current Venues")
-
-    # Show venues by city
-    venues_by_city = {}
-    for v in VENUES:
-        city_group = v.get("city_group", "Other")
-        if city_group not in venues_by_city:
-            venues_by_city[city_group] = []
-        venues_by_city[city_group].append(v["name"])
-
-    cols = st.columns(3)
-    col_idx = 0
-
-    for city, venues_list in sorted(venues_by_city.items()):
-        with cols[col_idx % 3]:
-            st.markdown(f"**📍 {city}** ({len(venues_list)})")
-            for v in sorted(venues_list):
-                st.caption(f"• {v}")
-            col_idx += 1
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 4: EXPORT & UPLOAD
-# ═══════════════════════════════════════════════════════════════════════════════
-with tab4:
-    st.markdown("## 📥 Export & Upload Results")
+with tab_export:
+    st.markdown("## 📥 Export Results")
 
     db = load_db()
-    total = sum(len(events) for events in db.values())
+    total_events = sum(len(events) for events in db.values())
 
-    if total > 0:
-        st.markdown(f"**Ready to export: {total} events**")
-
-        st.markdown("### Step 1: Download CSV")
-        csv_data = export_to_csv()
-        if csv_data:
-            st.download_button(
-                label="📥 Download CSV",
-                data=csv_data,
-                file_name=f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-
-        st.markdown("### Step 2: Upload to Google Sheets")
-        st.markdown("""
-        **How to upload:**
-        1. Download the CSV above
-        2. Open your Google Sheet: https://docs.google.com/spreadsheets/d/1sQEvI5uHEYYppPVIpe0qqzTiqj-oS5ryhN21xNj1scA
-        3. Click **File > Import > Upload file**
-        4. Choose the CSV
-        5. Click **Import**
-
-        Done! All events are now in Google Sheets.
-        """)
-
-        st.markdown("### Quick Upload Instructions")
-        if st.button("📋 Copy Google Sheet Link", use_container_width=True):
-            st.code("https://docs.google.com/spreadsheets/d/1sQEvI5uHEYYppPVIpe0qqzTiqj-oS5ryhN21xNj1scA", language="text")
-
-        st.markdown("---")
-        st.markdown("### Export Preview")
-        preview = export_to_csv()
-        if preview:
-            preview_lines = preview.split("\n")[:6]
-            st.code("\n".join(preview_lines), language="csv")
-
+    if total_events == 0:
+        st.info("No events to export yet. Run a search first!")
     else:
-        st.info("No events to export yet. Run the bot first!")
+        st.markdown(f"**Ready to export: {total_events} events**")
 
-st.markdown("---")
-st.markdown("**EventBot Pro v3** | Password: workrbee2026 | Updated 2026-06-24")
+        # Build export data
+        export_data = []
+        for venue_name, events in db.items():
+            for event in events:
+                export_data.append({
+                    "Date": event.get("event_dates", ""),
+                    "Event Name": event.get("event_name", ""),
+                    "Venue": event.get("venue_name", ""),
+                    "City": event.get("city", ""),
+                    "State": event.get("state", ""),
+                    "Contact Person": event.get("contact_person", ""),
+                    "Title": event.get("contact_title", ""),
+                    "Email": event.get("email", ""),
+                    "Phone": event.get("phone", ""),
+                    "URL": event.get("event_url", ""),
+                    "Status": event.get("status", ""),
+                })
+
+        # Sort by date
+        try:
+            export_data.sort(key=lambda x: x.get("Date", ""))
+        except:
+            pass
+
+        # Excel export
+        st.markdown("### Download as Excel")
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Events"
+
+            # Headers
+            headers = list(export_data[0].keys())
+            ws.append(headers)
+
+            # Style headers
+            header_fill = PatternFill(start_color="667eea", end_color="667eea", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # Data
+            for row_data in export_data:
+                ws.append([row_data.get(h, "") for h in headers])
+
+            # Auto-width
+            for column in ws.columns:
+                max_length = max(len(str(cell.value or "")) for cell in column)
+                ws.column_dimensions[column[0].column_letter].width = min(max_length + 2, 40)
+
+            # Save
+            filename = f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+            wb.save(filename)
+
+            with open(filename, "rb") as f:
+                st.download_button("📥 Download Excel", f, filename)
+
+            os.remove(filename)
+
+        except Exception as e:
+            st.error(f"Excel export error: {e}")
+
+        # CSV export
+        st.markdown("### Download as CSV")
+        csv_buffer = StringIO()
+        writer = csv.DictWriter(csv_buffer, fieldnames=export_data[0].keys())
+        writer.writeheader()
+        writer.writerows(export_data)
+
+        st.download_button(
+            "📥 Download CSV",
+            csv_buffer.getvalue(),
+            f"EventBot_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            "text/csv"
+        )
+
+st.divider()
+st.caption(f"EventBot Pro | Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
