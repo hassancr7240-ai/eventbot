@@ -700,42 +700,42 @@ def scrape_venue(
     stop_event=None,
 ) -> list[dict]:
     """
-    Full scrape pipeline for one venue.
-    1. Google search all phrases (rate-limited)
-    2. Process each result URL
-    Returns list of records.
+    Fast scrape: Skip Google Search (slow!), use only industry sources.
+    Industry sources are faster, more reliable, and return real events.
     """
-    phrases = generate_phrases(
-        venue["search_name"], start_year, end_year, city=venue.get("city", "")
-    )
-    total = len(phrases)
     results = []
-    seen_urls: set[str] = set()
-    seen_events: set[str] = set()
+    logger.info("Scraping %s (fast mode: industry sources only)", venue["name"])
 
-    logger.info("Scraping %s | %d phrases | %d-%d", venue["name"], total, start_year, end_year)
+    # Just use industry crawlers — they're fast and return real events
+    industry_crawlers = [
+        crawl_eventbrite,
+        crawl_allconferencealert,
+        crawl_10times,
+        crawl_conferencenext,
+        crawl_iaee,
+        crawl_pcma,
+        crawl_eventsinamerica,
+    ]
 
-    for i, phrase in enumerate(phrases):
+    for i, crawler in enumerate(industry_crawlers):
         if stop_event and stop_event.is_set():
             logger.info("Stop signal — halting.")
             break
 
         if progress_callback:
-            progress_callback(i + 1, total, f"[{i+1}/{total}] {phrase}")
+            progress_callback(i + 1, len(industry_crawlers), f"Crawling {crawler.__name__}...")
 
-        urls = multi_search(phrase, num_results=5)
+        try:
+            recs = crawler(venue)
+            if recs:
+                logger.info(f"  {crawler.__name__}: +{len(recs)} records")
+                results.extend(recs)
+        except Exception as e:
+            logger.warning(f"  {crawler.__name__} failed: {e}")
 
-        for url in urls:
-            if stop_event and stop_event.is_set():
-                break
-            _polite_delay(2.0, 4.0)
-            recs = process_url(url, venue, seen_urls, seen_events)
-            results.extend(recs)
+        _polite_delay(1.0, 2.0)
 
-        # Extra delay between phrases to stay polite
-        _polite_delay(10.0, 15.0)
-
-    logger.info("Done %s — %d records", venue["name"], len(results))
+    logger.info("Done %s — %d records from industry sources", venue["name"], len(results))
     return results
 
 
