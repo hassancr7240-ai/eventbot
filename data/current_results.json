@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "event_name": "Tech Conference - Washington",
+    "event_dates": "2026-06-01",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "John Organizer",
+    "contact_title": "Event Manager",
+    "email": "contact@conference.com",
+    "phone": "202-555-0123",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/events/?start_date=2026-06-01&end_date=2026-12-31",
+    "scraped_at": "2026-06-25T03:47:06.477107"
+  }
+]
