@@ -1,6 +1,6 @@
 """
 EventBot Scraper - WORKING VERSION
-Uses Eventbrite directly (no Google search timeouts)
+Uses Eventbrite directly with browser automation for JavaScript-rendered content
 Fast, reliable, real results
 """
 
@@ -11,6 +11,11 @@ import time
 from datetime import datetime
 from bs4 import BeautifulSoup
 import logging
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,107 +37,104 @@ def save_results(results):
 
 def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str) -> list:
     """
-    Scrape Eventbrite for events
+    Scrape Eventbrite for events using Selenium (JS-rendered content)
     LIVE: Saves results to file as they're found so UI updates in real-time
     """
     results = load_results()
+    driver = None
 
     try:
-        # Eventbrite city mapping
         city_slug = city.lower().replace(" ", "-")
+        url = f"https://www.eventbrite.com/d/{city_slug}--{city_slug}/events/?start_date={start_date}&end_date={end_date}"
 
-        # Search URL - try multiple variations
-        urls = [
-            f"https://www.eventbrite.com/d/{city_slug}--{city_slug}/events/?start_date={start_date}&end_date={end_date}",
-            f"https://www.eventbrite.com/d/{city_slug}/events/?start_date={start_date}&end_date={end_date}",
-        ]
+        logger.info(f"Starting browser for: {url}")
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
+        # Setup Chrome options
+        chrome_options = Options()
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
-        for url in urls:
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.set_page_load_timeout(20)
+
+        logger.info(f"Loading page...")
+        driver.get(url)
+
+        # Wait for events to load
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[data-testid='event-card']"))
+            )
+        except:
+            logger.warning("Timeout waiting for event cards")
+
+        # Scroll to load more events
+        for _ in range(3):
+            driver.execute_script("window.scrollBy(0, 1000);")
+            time.sleep(1)
+
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        # Find event cards
+        cards = soup.find_all("div", {"data-testid": "event-card"})
+        logger.info(f"Found {len(cards)} event cards")
+
+        for card in cards:
             try:
-                logger.info(f"Fetching: {url}")
-
-                resp = requests.get(url, headers=headers, timeout=15)
-                if resp.status_code != 200:
-                    logger.warning(f"HTTP {resp.status_code} for {url}")
+                # Event name
+                title_elem = card.find("h3")
+                if not title_elem:
                     continue
 
-                soup = BeautifulSoup(resp.text, "html.parser")
+                event_name = title_elem.get_text(strip=True)
 
-                # Try multiple selectors for event cards
-                cards = soup.find_all("div", {"data-testid": "event-card"})
-                if not cards:
-                    # Fallback selector
-                    cards = soup.find_all("article", class_="event-card")
+                # Date
+                date_elem = card.find("span", {"data-testid": "event-date-time-inner"})
+                event_date = date_elem.get_text(strip=True) if date_elem else ""
 
-                logger.info(f"Found {len(cards)} event cards")
-
-                if not cards:
+                # Skip if too short
+                if len(event_name) < 3:
                     continue
 
-                # Find event cards
-                for card in cards:
-                    try:
-                        # Event name - try multiple selectors
-                        title_elem = card.find("h3") or card.find("h2")
-                        if not title_elem:
-                            title_elem = card.find("a", class_="event-name")
+                event = {
+                    "event_name": event_name,
+                    "event_dates": event_date,
+                    "venue_name": venue_name,
+                    "city": city,
+                    "contact_person": "",
+                    "contact_title": "",
+                    "email": "",
+                    "phone": "",
+                    "event_url": url,
+                    "scraped_at": datetime.now().isoformat()
+                }
 
-                        if not title_elem:
-                            continue
-
-                        event_name = title_elem.get_text(strip=True)
-
-                        # Date
-                        date_elem = card.find("span", {"data-testid": "event-date-time-inner"})
-                        if not date_elem:
-                            date_elem = card.find("span", class_="event-date")
-
-                        event_date = date_elem.get_text(strip=True) if date_elem else ""
-
-                        # Skip if no name or too short
-                        if len(event_name) < 3:
-                            continue
-
-                        event = {
-                            "event_name": event_name,
-                            "event_dates": event_date,
-                            "venue_name": venue_name,
-                            "city": city,
-                            "contact_person": "",
-                            "contact_title": "",
-                            "email": "",
-                            "phone": "",
-                            "event_url": url,
-                            "scraped_at": datetime.now().isoformat()
-                        }
-
-                        # Check if already exists
-                        existing_names = set([e["event_name"].lower() for e in results])
-                        if event_name.lower() not in existing_names:
-                            results.append(event)
-                            save_results(results)  # SAVE IMMEDIATELY so UI sees it
-                            logger.info(f"  ✅ Found & saved: {event_name[:60]}")
-                            time.sleep(0.2)  # Small delay between saves
-
-                    except Exception as e:
-                        logger.debug(f"Error parsing card: {e}")
-                        continue
-
-                if results:  # Stop if we found something
-                    break
+                # Check if already exists
+                existing_names = set([e["event_name"].lower() for e in results])
+                if event_name.lower() not in existing_names:
+                    results.append(event)
+                    save_results(results)  # SAVE IMMEDIATELY
+                    logger.info(f"  Found: {event_name[:60]}")
+                    time.sleep(0.1)
 
             except Exception as e:
-                logger.warning(f"Error with URL {url}: {e}")
+                logger.debug(f"Parse error: {e}")
                 continue
 
-        logger.info(f"Total scraped: {len(results)}")
+        logger.info(f"Total: {len(results)} events")
 
     except Exception as e:
-        logger.error(f"Eventbrite scrape error: {e}")
+        logger.error(f"Scrape error: {e}")
+        import traceback
+        traceback.print_exc()
+
+    finally:
+        if driver:
+            driver.quit()
 
     return results
 
