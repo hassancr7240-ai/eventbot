@@ -282,24 +282,23 @@ with tab_search:
                             break
 
                     if not venue_city:
-                        print(f"ERROR: Venue '{venue}' not found in database!", file=sys.stderr)
+                        logger.error(f"Venue '{venue}' not found in database!")
                         continue
 
-                    print(f"[SCRAPER] Starting {venue} in {venue_city}...")
-                    sys.stdout.flush()
+                    logger.info(f"Searching {venue} in {venue_city}...")
 
                     # Scrape this venue (generates 30+ events)
                     result = scrape_eventbrite(venue, venue_city,
                                      start_date.strftime("%Y-%m-%d"),
                                      end_date.strftime("%Y-%m-%d"))
 
-                    print(f"[SCRAPER] Completed {venue} - found {len(result)} total results", file=sys.stderr)
-                    sys.stderr.flush()
+                    logger.info(f"Completed {venue} - found {len(result)} total results")
 
+                logger.info("All venues searched! Setting searching=False")
                 st.session_state.searching = False
 
             except Exception as e:
-                print(f"[ERROR] {e}", file=sys.stderr)
+                logger.error(f"Search error: {e}")
                 import traceback
                 traceback.print_exc()
                 st.session_state.search_error = str(e)
@@ -307,13 +306,10 @@ with tab_search:
 
         # Start search thread if not already running
         if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
-            print("[STREAMLIT] Starting background search thread...")
-            sys.stdout.flush()
+            logger.info("Starting background search thread...")
             thread = threading.Thread(target=run_search_live, daemon=True)
             thread.start()
             st.session_state.search_thread = thread
-            print("[STREAMLIT] Thread started, waiting for results...")
-            sys.stdout.flush()
 
         # Show live results - load from file (NO DELAYS)
         current_results = load_results()
@@ -334,12 +330,11 @@ with tab_search:
             if df_live:
                 st.dataframe(df_live, use_container_width=True, height=400)
 
-        st.write(f"*Last refresh: {datetime.now().strftime('%H:%M:%S')}*")
+        st.write(f"*Refreshing... ({datetime.now().strftime('%H:%M:%S')})*")
 
-        # Auto-refresh while searching
-        if st.session_state.get("searching", False):
-            time.sleep(0.5)  # Small delay to prevent CPU spinning
-            st.rerun()
+        # Auto-refresh POLLING (every 0.5 seconds) - stateless approach
+        time.sleep(0.5)
+        st.rerun()
         else:
             if result_count > 0:
                 st.success("✅ Search complete! View all results in the Results tab.")
