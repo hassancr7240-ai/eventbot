@@ -367,97 +367,92 @@ with tab_search:
         **Results show as bot finds them!**
         """)
 
-    # Show results if search has started
-    if st.session_state.get("results_shown", False):
+    # Background search thread ALWAYS runs if searching
+    if st.session_state.get("searching", False):
+        def run_search_background():
+            try:
+                from scraper import scrape_eventbrite, VENUES_DATABASE
+                import sys
 
-        # Background search if still running
-        if st.session_state.get("searching", False):
-            st.markdown("""
-            <div class="status-running">
-            <strong>⏳ Scraping Real Events...</strong><br>
-            Results appear below as they are discovered.
-            </div>
-            """, unsafe_allow_html=True)
+                venues_to_search = st.session_state.get("search_venues", [])
+                start_date_str = st.session_state.get("search_start_date", "2026-06-01")
+                end_date_str = st.session_state.get("search_end_date", "2026-12-31")
 
-            # Run search in background
-            def run_search_background():
-                try:
-                    from scraper import scrape_eventbrite, VENUES_DATABASE
-                    import sys
+                print(f"\n[THREAD] Starting search for venues: {venues_to_search}", file=sys.stderr)
+                print(f"[THREAD] Date range: {start_date_str} to {end_date_str}\n", file=sys.stderr)
+                sys.stderr.flush()
 
-                    venues_to_search = st.session_state.get("search_venues", [])
-                    start_date_str = st.session_state.get("search_start_date", "2026-06-01")
-                    end_date_str = st.session_state.get("search_end_date", "2026-12-31")
+                for venue in venues_to_search:
+                    if not st.session_state.get("searching", False):
+                        print(f"[THREAD] Search stopped", file=sys.stderr)
+                        break
 
-                    print(f"[THREAD] Starting search for venues: {venues_to_search}", file=sys.stderr)
-                    print(f"[THREAD] Date range: {start_date_str} to {end_date_str}", file=sys.stderr)
-                    sys.stderr.flush()
-
-                    for venue in venues_to_search:
-                        if not st.session_state.get("searching", False):
-                            print(f"[THREAD] Search stopped", file=sys.stderr)
+                    # Find city
+                    venue_city = None
+                    for city_key, city_venues in VENUES_DATABASE.items():
+                        if venue in city_venues:
+                            venue_city = city_key
                             break
 
-                        # Find city
-                        venue_city = None
-                        for city_key, city_venues in VENUES_DATABASE.items():
-                            if venue in city_venues:
-                                venue_city = city_key
-                                break
+                    if venue_city:
+                        print(f"[THREAD] Calling scraper for {venue}...", file=sys.stderr)
+                        sys.stderr.flush()
+                        result = scrape_eventbrite(venue, venue_city, start_date_str, end_date_str, num_results=100)
+                        print(f"[THREAD] Scraper returned {len(result)} results total", file=sys.stderr)
+                        sys.stderr.flush()
+                    else:
+                        print(f"[THREAD] Venue {venue} not found in database!", file=sys.stderr)
 
-                        if venue_city:
-                            print(f"[THREAD] Calling scraper for {venue}...", file=sys.stderr)
-                            sys.stderr.flush()
-                            result = scrape_eventbrite(venue, venue_city, start_date_str, end_date_str, num_results=100)
-                            print(f"[THREAD] Scraper returned {len(result)} results", file=sys.stderr)
-                            sys.stderr.flush()
-                        else:
-                            print(f"[THREAD] Venue {venue} not found in database!", file=sys.stderr)
+                st.session_state.searching = False
+                print(f"\n[THREAD] Search complete!\n", file=sys.stderr)
+                sys.stderr.flush()
 
-                    st.session_state.searching = False
-                    print(f"[THREAD] Search complete!", file=sys.stderr)
-                    sys.stderr.flush()
+            except Exception as e:
+                import traceback
+                print(f"\n[THREAD ERROR] {e}", file=sys.stderr)
+                traceback.print_exc()
+                sys.stderr.flush()
+                st.session_state.searching = False
 
-                except Exception as e:
-                    import traceback
-                    print(f"[THREAD ERROR] {e}", file=sys.stderr)
-                    traceback.print_exc()
-                    sys.stderr.flush()
-                    st.session_state.searching = False
+        # Start thread if not already running
+        if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
+            print("\n[APP] Starting background thread...", file=sys.stderr)
+            thread = threading.Thread(target=run_search_background, daemon=True)
+            thread.start()
+            st.session_state.search_thread = thread
 
-            # Start thread
-            if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
-                thread = threading.Thread(target=run_search_background, daemon=True)
-                thread.start()
-                st.session_state.search_thread = thread
+    # Show results if search has started
+    if st.session_state.get("results_shown", False):
+        st.markdown("""
+        <div class="status-running">
+        <strong>⏳ Scraping Real Events...</strong><br>
+        Results appear below as they are discovered.
+        </div>
+        """, unsafe_allow_html=True)
 
-            # Show live results
-            current_results = load_results()
-            result_count = len(current_results)
-            st.markdown(f"**✅ Found {result_count} events**")
+        # Show live results
+        current_results = load_results()
+        result_count = len(current_results)
+        st.markdown(f"**✅ Found {result_count} events**")
 
-            if current_results:
-                df_live = []
-                for r in current_results[-20:]:
-                    df_live.append({
-                        "Event": r.get("event_name", "")[:60],
-                        "Date": r.get("event_dates", ""),
-                        "Venue": r.get("venue_name", ""),
-                        "Contact": r.get("contact_person", "")
-                    })
+        if current_results:
+            df_live = []
+            for r in current_results[-20:]:
+                df_live.append({
+                    "Event": r.get("event_name", "")[:60],
+                    "Date": r.get("event_dates", ""),
+                    "Venue": r.get("venue_name", ""),
+                    "Contact": r.get("contact_person", "")
+                })
 
-                if df_live:
-                    st.dataframe(df_live, use_container_width=True, height=400)
+            if df_live:
+                st.dataframe(df_live, use_container_width=True, height=400)
 
+        if st.session_state.get("searching", False):
             st.write(f"*Refreshing... ({datetime.now().strftime('%H:%M:%S')})*")
             time.sleep(1)
             st.rerun()
-
         else:
-            # Search finished
-            current_results = load_results()
-            result_count = len(current_results)
-
             if result_count > 0:
                 st.markdown("""
                 <div class="status-done">
@@ -465,21 +460,6 @@ with tab_search:
                 Real event data loaded. View Results tab or download Excel.
                 </div>
                 """, unsafe_allow_html=True)
-
-                st.markdown(f"**✅ Found {result_count} events from your search**")
-
-                if current_results:
-                    df_live = []
-                    for r in current_results[-20:]:
-                        df_live.append({
-                            "Event": r.get("event_name", "")[:60],
-                            "Date": r.get("event_dates", ""),
-                            "Venue": r.get("venue_name", ""),
-                            "Contact": r.get("contact_person", "")
-                        })
-
-                    if df_live:
-                        st.dataframe(df_live, use_container_width=True, height=400)
             else:
                 st.info("No results found. Try different search criteria.")
 
