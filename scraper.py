@@ -68,7 +68,7 @@ EVENTS_DATABASE = {
 
 def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str) -> list:
     """
-    Get events for a city and venue
+    Get events for a city
     LIVE: Saves results immediately as they're found
     Simulates finding events one by one for live streaming
     """
@@ -77,38 +77,44 @@ def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str
     try:
         city_lower = city.lower()
 
-        # Get events for this city
-        city_events = EVENTS_DATABASE.get(city_lower, [])
+        # Normalize city name for lookup
+        city_lookup = city_lower.replace(" ", "-") if " " in city_lower else city_lower
 
-        logger.info(f"Searching {venue_name} in {city}")
-        logger.info(f"Found {len(city_events)} events in database")
+        # Get events for this city from database
+        city_events = EVENTS_DATABASE.get(city_lookup, [])
+
+        if not city_events:
+            # Try alternate naming
+            city_events = EVENTS_DATABASE.get(city_lower, [])
+
+        logger.info(f"Searching {city} for all events")
+        logger.info(f"Found {len(city_events)} events in database for {city_lookup}")
 
         # Simulate finding events one by one (for live streaming effect)
         for event_data in city_events:
             try:
-                # Parse dates to filter by range
                 event_date_str = event_data["date"]
 
                 event = {
                     "event_name": event_data["name"],
                     "event_dates": event_date_str,
-                    "venue_name": venue_name,
+                    "venue_name": venue_name,  # Use selected venue name
                     "city": city,
                     "contact_person": event_data["contact"],
                     "contact_title": event_data["title"],
                     "email": event_data["email"],
                     "phone": event_data["phone"],
-                    "event_url": f"https://www.eventbrite.com/d/{city_lower}/",
+                    "event_url": f"https://www.eventbrite.com/d/{city_lookup}/",
                     "scraped_at": datetime.now().isoformat()
                 }
 
-                # Check if already exists
-                existing_names = set([e["event_name"].lower() for e in results])
-                if event["event_name"].lower() not in existing_names:
+                # Check if already exists by event name + date combo
+                existing = set([(e["event_name"].lower(), e["event_dates"]) for e in results])
+                if (event["event_name"].lower(), event["event_dates"]) not in existing:
                     results.append(event)
                     save_results(results)  # SAVE IMMEDIATELY for live updates
                     logger.info(f"  Found: {event['event_name']}")
-                    time.sleep(0.2)  # Small delay to show live streaming
+                    time.sleep(0.15)  # Small delay to show live streaming
 
             except Exception as e:
                 logger.debug(f"Error processing event: {e}")
