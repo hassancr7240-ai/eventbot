@@ -171,8 +171,9 @@ with tab_search:
     with col_settings:
         st.markdown("### Settings")
 
-        # Venue selection
-        venue_names = ["DC Convention Center", "Marriott Marquis", "Gaylord National Harbor"]
+        # Venue selection - from scraper database
+        from scraper import EVENTS_DATABASE
+        venue_names = list(EVENTS_DATABASE.keys())
         venue_names += [v["name"] for v in load_custom_venues()]
         venue_names = sorted(list(set(venue_names)))
 
