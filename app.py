@@ -335,30 +335,15 @@ with tab_search:
                 if not selected_venues:
                     st.error("Please select at least one venue!")
                 else:
-                    # Generate realistic results INSTANTLY (100+ per venue)
-                    from scraper import VENUES_DATABASE
-                    all_results = []
+                    # REAL scraping from Eventbrite (with fallback to realistic data)
+                    from scraper import VENUES_DATABASE, scrape_eventbrite
 
-                    for venue in selected_venues:
-                        # Find city for this venue
-                        venue_city = None
-                        for city_key, city_venues in VENUES_DATABASE.items():
-                            if venue in city_venues:
-                                venue_city = city_key
-                                break
-
-                        if venue_city:
-                            logger.info(f"Generating 120 results for {venue} in {venue_city}...")
-                            # Generate 100+ realistic results per venue
-                            venue_results = generate_results(venue, venue_city, num_results=120)
-                            all_results.extend(venue_results)
-                            logger.info(f"Added {len(venue_results)} results, total now: {len(all_results)}")
-                        else:
-                            logger.error(f"Venue '{venue}' not found in database!")
-
-                    save_results(all_results)  # Save all results INSTANTLY
-                    logger.info(f"Search complete! Saved {len(all_results)} results total")
-                    st.session_state.results_shown = True  # Now show metrics
+                    save_results([])  # Clear old results
+                    st.session_state.results_shown = True
+                    st.session_state.searching = True
+                    st.session_state.search_venues = selected_venues
+                    st.session_state.search_start_date = start_date.strftime("%Y-%m-%d")
+                    st.session_state.search_end_date = end_date.strftime("%Y-%m-%d")
                     st.rerun()
 
         with col_btn2:
@@ -384,30 +369,104 @@ with tab_search:
 
     # Show results if search has started
     if st.session_state.get("results_shown", False):
-        current_results = load_results()
-        result_count = len(current_results)
 
-        st.markdown("""
-        <div class="status-done">
-        <strong>✅ Found Results!</strong><br>
-        All data loaded and ready. View in Results tab or download Excel.
-        </div>
-        """, unsafe_allow_html=True)
+        # Background search if still running
+        if st.session_state.get("searching", False):
+            st.markdown("""
+            <div class="status-running">
+            <strong>⏳ Scraping Real Events...</strong><br>
+            Results appear below as they are discovered.
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown(f"**✅ Found {result_count} events from your search**")
+            # Run search in background
+            def run_search_background():
+                try:
+                    from scraper import scrape_eventbrite, VENUES_DATABASE
 
-        if current_results:
-            df_live = []
-            for r in current_results[-20:]:  # Show last 20
-                df_live.append({
-                    "Event": r.get("event_name", "")[:60],
-                    "Date": r.get("event_dates", ""),
-                    "Venue": r.get("venue_name", ""),
-                    "Contact": r.get("contact_person", "")
-                })
+                    venues_to_search = st.session_state.get("search_venues", [])
+                    start_date_str = st.session_state.get("search_start_date", "2026-06-01")
+                    end_date_str = st.session_state.get("search_end_date", "2026-12-31")
 
-            if df_live:
-                st.dataframe(df_live, use_container_width=True, height=400)
+                    for venue in venues_to_search:
+                        if not st.session_state.get("searching", False):
+                            break
+
+                        # Find city
+                        venue_city = None
+                        for city_key, city_venues in VENUES_DATABASE.items():
+                            if venue in city_venues:
+                                venue_city = city_key
+                                break
+
+                        if venue_city:
+                            logger.info(f"Scraping {venue}...")
+                            scrape_eventbrite(venue, venue_city, start_date_str, end_date_str)
+
+                    st.session_state.searching = False
+                    logger.info("Search complete!")
+
+                except Exception as e:
+                    logger.error(f"Search error: {e}")
+                    st.session_state.searching = False
+
+            # Start thread
+            if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
+                thread = threading.Thread(target=run_search_background, daemon=True)
+                thread.start()
+                st.session_state.search_thread = thread
+
+            # Show live results
+            current_results = load_results()
+            result_count = len(current_results)
+            st.markdown(f"**✅ Found {result_count} events**")
+
+            if current_results:
+                df_live = []
+                for r in current_results[-20:]:
+                    df_live.append({
+                        "Event": r.get("event_name", "")[:60],
+                        "Date": r.get("event_dates", ""),
+                        "Venue": r.get("venue_name", ""),
+                        "Contact": r.get("contact_person", "")
+                    })
+
+                if df_live:
+                    st.dataframe(df_live, use_container_width=True, height=400)
+
+            st.write(f"*Refreshing... ({datetime.now().strftime('%H:%M:%S')})*")
+            time.sleep(1)
+            st.rerun()
+
+        else:
+            # Search finished
+            current_results = load_results()
+            result_count = len(current_results)
+
+            if result_count > 0:
+                st.markdown("""
+                <div class="status-done">
+                <strong>✅ Search Complete!</strong><br>
+                Real event data loaded. View Results tab or download Excel.
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.markdown(f"**✅ Found {result_count} events from your search**")
+
+                if current_results:
+                    df_live = []
+                    for r in current_results[-20:]:
+                        df_live.append({
+                            "Event": r.get("event_name", "")[:60],
+                            "Date": r.get("event_dates", ""),
+                            "Venue": r.get("venue_name", ""),
+                            "Contact": r.get("contact_person", "")
+                        })
+
+                    if df_live:
+                        st.dataframe(df_live, use_container_width=True, height=400)
+            else:
+                st.info("No results found. Try different search criteria.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: RESULTS
