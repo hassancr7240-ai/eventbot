@@ -190,11 +190,21 @@ with tab_search:
 
         st.markdown("---")
 
-        # Search button
-        if st.button("▶️ START SEARCH", use_container_width=True):
-            save_results([])  # FRESH START
-            st.session_state.searching = True
-            st.rerun()
+        # Search controls
+        col_btn1, col_btn2 = st.columns(2)
+
+        with col_btn1:
+            if st.button("▶️ START SEARCH", use_container_width=True):
+                save_results([])  # FRESH START
+                st.session_state.searching = True
+                st.rerun()
+
+        with col_btn2:
+            if st.session_state.get("searching", False):
+                if st.button("⏹ STOP SEARCH", use_container_width=True):
+                    st.session_state.searching = False
+                    st.success("Search stopped! View results below.")
+                    st.rerun()
 
     with col_info:
         st.markdown("### ℹ️ How It Works")
