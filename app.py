@@ -297,31 +297,31 @@ with tab_search:
             thread.start()
             st.session_state.search_thread = thread
 
-        # Show live results - load from file
+        # Show live results - load from file (NO DELAYS)
         current_results = load_results()
 
-        if current_results:
-            st.markdown(f"**✅ Found {len(current_results)} events so far**")
+        result_count = len(current_results)
+        st.markdown(f"**✅ Found {result_count} events**")
 
+        if current_results:
             df_live = []
-            for r in current_results[-10:]:  # Show last 10
+            for r in current_results[-20:]:  # Show last 20
                 df_live.append({
-                    "Event": r.get("event_name", "")[:50],
+                    "Event": r.get("event_name", "")[:60],
                     "Date": r.get("event_dates", ""),
-                    "Venue": r.get("venue_name", "")
+                    "Venue": r.get("venue_name", ""),
+                    "Contact": r.get("contact_person", "")
                 })
 
             if df_live:
-                st.dataframe(df_live, use_container_width=True, height=300)
-        else:
-            st.info("Waiting for first results... (may take 30 seconds)")
+                st.dataframe(df_live, use_container_width=True, height=400)
 
-        # Auto-refresh UI every 100ms while searching (INSTANT updates)
+        # Auto-refresh INSTANTLY while searching (no delay)
         if st.session_state.get("searching", False):
-            time.sleep(0.1)
             st.rerun()
         else:
-            st.success("✅ Search complete! View all results in the Results tab.")
+            if result_count > 0:
+                st.success("✅ Search complete! View all results in the Results tab.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: RESULTS
