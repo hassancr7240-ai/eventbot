@@ -383,13 +383,19 @@ with tab_search:
             def run_search_background():
                 try:
                     from scraper import scrape_eventbrite, VENUES_DATABASE
+                    import sys
 
                     venues_to_search = st.session_state.get("search_venues", [])
                     start_date_str = st.session_state.get("search_start_date", "2026-06-01")
                     end_date_str = st.session_state.get("search_end_date", "2026-12-31")
 
+                    print(f"[THREAD] Starting search for venues: {venues_to_search}", file=sys.stderr)
+                    print(f"[THREAD] Date range: {start_date_str} to {end_date_str}", file=sys.stderr)
+                    sys.stderr.flush()
+
                     for venue in venues_to_search:
                         if not st.session_state.get("searching", False):
+                            print(f"[THREAD] Search stopped", file=sys.stderr)
                             break
 
                         # Find city
@@ -400,14 +406,23 @@ with tab_search:
                                 break
 
                         if venue_city:
-                            logger.info(f"Scraping {venue}...")
-                            scrape_eventbrite(venue, venue_city, start_date_str, end_date_str, num_results=100)
+                            print(f"[THREAD] Calling scraper for {venue}...", file=sys.stderr)
+                            sys.stderr.flush()
+                            result = scrape_eventbrite(venue, venue_city, start_date_str, end_date_str, num_results=100)
+                            print(f"[THREAD] Scraper returned {len(result)} results", file=sys.stderr)
+                            sys.stderr.flush()
+                        else:
+                            print(f"[THREAD] Venue {venue} not found in database!", file=sys.stderr)
 
                     st.session_state.searching = False
-                    logger.info("Search complete!")
+                    print(f"[THREAD] Search complete!", file=sys.stderr)
+                    sys.stderr.flush()
 
                 except Exception as e:
-                    logger.error(f"Search error: {e}")
+                    import traceback
+                    print(f"[THREAD ERROR] {e}", file=sys.stderr)
+                    traceback.print_exc()
+                    sys.stderr.flush()
                     st.session_state.searching = False
 
             # Start thread
