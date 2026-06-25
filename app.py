@@ -178,14 +178,22 @@ def generate_results(venue_name, city_name, num_results=100):
         last = random.choice(last_names)
         title = random.choice(titles)
 
+        # Create email domain from city (remove hyphens and spaces)
         city_slug = city_name.lower().replace(" ", "").replace("-", "")
         domain = f"{city_slug}.org"
         email = f"{first[0].lower()}.{last.lower()}@{domain}"
 
+        # Map city keys to area codes
         area_codes = {
-            "washington": "202", "nationalharbor": "301", "bethesda": "301",
-            "baltimore": "410", "philadelphia": "215", "wilmington": "302",
-            "kingofprussia": "610", "uppermarlboro": "301", "oaks": "610"
+            "washington": "202",
+            "nationalharbor": "301",
+            "bethesda": "301",
+            "baltimore": "410",
+            "philadelphia": "215",
+            "wilmington": "302",
+            "kingofprussia": "610",
+            "uppermarlboro": "301",
+            "oaks": "610"
         }
         area_code = area_codes.get(city_slug, "202")
         phone = f"{area_code}-555-{random.randint(1000, 9999)}"
@@ -304,9 +312,8 @@ with tab_search:
         st.markdown("**Select Venues (Check multiple to search together)**")
         selected_venues = st.multiselect("Venues", all_venues, default=[all_venues[0]] if all_venues else [], key="search_venue_key")
 
-        # City selection
-        cities = ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "All Cities"]
-        selected_city = st.selectbox("City", cities, key="search_city_key")
+        if not selected_venues:
+            st.warning("Select at least one venue")
 
         st.markdown("**Date Range**")
 
@@ -337,15 +344,20 @@ with tab_search:
                         venue_city = None
                         for city_key, city_venues in VENUES_DATABASE.items():
                             if venue in city_venues:
-                                venue_city = city_key.replace("-", " ").title()
+                                venue_city = city_key
                                 break
 
                         if venue_city:
+                            logger.info(f"Generating 120 results for {venue} in {venue_city}...")
                             # Generate 100+ realistic results per venue
                             venue_results = generate_results(venue, venue_city, num_results=120)
                             all_results.extend(venue_results)
+                            logger.info(f"Added {len(venue_results)} results, total now: {len(all_results)}")
+                        else:
+                            logger.error(f"Venue '{venue}' not found in database!")
 
                     save_results(all_results)  # Save all results INSTANTLY
+                    logger.info(f"Search complete! Saved {len(all_results)} results total")
                     st.session_state.results_shown = True  # Now show metrics
                     st.rerun()
 
