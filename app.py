@@ -11,6 +11,9 @@ import pandas as pd
 import subprocess
 import threading
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="EventBot Pro", layout="wide", initial_sidebar_state="collapsed")
 
@@ -171,13 +174,17 @@ with tab_search:
     with col_settings:
         st.markdown("### Settings")
 
-        # Venue selection - from scraper database
-        from scraper import EVENTS_DATABASE
-        venue_names = list(EVENTS_DATABASE.keys())
-        venue_names += [v["name"] for v in load_custom_venues()]
-        venue_names = sorted(list(set(venue_names)))
+        # Venue selection - MULTI-SELECT from all 80+ venues
+        from scraper import VENUES_DATABASE
+        all_venues = []
+        for city_venues in VENUES_DATABASE.values():
+            all_venues.extend(city_venues.keys())
+        all_venues += [v["name"] for v in load_custom_venues()]
+        all_venues = sorted(list(set(all_venues)))
 
-        selected_venue = st.selectbox("Venue", venue_names, key="search_venue_key")
+        # Multi-select venues
+        st.markdown("**Select Venues (Check multiple to search together)**")
+        selected_venues = st.multiselect("Venues", all_venues, default=[all_venues[0]] if all_venues else [], key="search_venue_key")
 
         # City selection
         cities = ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "All Cities"]
@@ -200,15 +207,19 @@ with tab_search:
 
         with col_btn1:
             if st.button("▶️ START SEARCH", use_container_width=True):
-                save_results([])  # FRESH START
-                st.session_state.searching = True
-                st.rerun()
+                if not selected_venues:
+                    st.error("Please select at least one venue!")
+                else:
+                    save_results([])  # FRESH START
+                    st.session_state.searching = True
+                    st.session_state.search_venues = selected_venues
+                    st.rerun()
 
         with col_btn2:
             if st.session_state.get("searching", False):
                 if st.button("⏹ STOP SEARCH", use_container_width=True):
                     st.session_state.searching = False
-                    st.success("Search stopped! View results below.")
+                    st.success("✅ Search stopped! All results saved.")
                     st.rerun()
 
     with col_info:
@@ -234,15 +245,32 @@ with tab_search:
         </div>
         """, unsafe_allow_html=True)
 
-        # Run search in background
+        # Run search in background - MULTIPLE VENUES
         def run_search_live():
             try:
                 from scraper import scrape_eventbrite
 
-                # Scrape and save results in real-time
-                events = scrape_eventbrite(selected_venue, selected_city,
-                                          start_date.strftime("%Y-%m-%d"),
-                                          end_date.strftime("%Y-%m-%d"))
+                venues_to_search = st.session_state.get("search_venues", [])
+                # Map venue name to city (from VENUES_DATABASE)
+                from scraper import VENUES_DATABASE
+
+                for venue in venues_to_search:
+                    if not st.session_state.get("searching", False):
+                        break  # Stop if user clicked STOP
+
+                    # Find city for this venue
+                    venue_city = selected_city
+                    for city_key, city_venues in VENUES_DATABASE.items():
+                        if venue in city_venues:
+                            venue_city = city_key.replace("-", " ").title()
+                            break
+
+                    logger.info(f"Searching {venue} in {venue_city}...")
+
+                    # Scrape this venue (generates 30+ events)
+                    scrape_eventbrite(venue, venue_city,
+                                     start_date.strftime("%Y-%m-%d"),
+                                     end_date.strftime("%Y-%m-%d"))
 
                 st.session_state.searching = False
 
