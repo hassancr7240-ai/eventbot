@@ -108,7 +108,11 @@ st.divider()
 # METRICS
 # ─────────────────────────────────────────────────────────────────────────────
 
-results = load_results()
+# Show metrics only if there are results
+try:
+    results = load_results()
+except:
+    results = []
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -284,7 +288,10 @@ with tab_search:
 with tab_results:
     st.markdown("## 📊 Results")
 
-    results = load_results()
+    try:
+        results = load_results()
+    except:
+        results = []
 
     if results:
         # Filters
