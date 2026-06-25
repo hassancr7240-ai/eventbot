@@ -175,7 +175,7 @@ with tab_search:
         selected_venue = st.selectbox("Venue", venue_names, key="search_venue_key")
 
         # City selection
-        cities = ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "Bethesda"]
+        cities = ["Washington", "Baltimore", "Philadelphia", "Oxon Hill", "All Cities"]
         selected_city = st.selectbox("City", cities, key="search_city_key")
 
         st.markdown("**Date Range**")
