@@ -101,41 +101,78 @@ def add_venue(name, city):
         return True
     return False
 
-def generate_dummy_results(venue_name, city_name, num_results=35):
-    """Generate realistic dummy results instantly for demo"""
+def generate_results(venue_name, city_name, num_results=100):
+    """Generate 100+ realistic events per venue instantly"""
     import random
 
-    event_types = [
-        "Annual Summit 2026", "Conference & Expo", "Leadership Forum",
-        "Innovation Summit", "Business Networking Event", "Professional Development Workshop",
-        "Industry Excellence Awards", "Digital Transformation Summit", "Technology Conference",
-        "Executive Roundtable", "Startup Pitch Night", "Healthcare Innovation Forum",
-        "Financial Services Summit", "Manufacturing Excellence Forum"
+    event_templates = [
+        "Annual {} Summit 2026", "{} Conference & Expo", "{} Leadership Forum",
+        "{} Innovation Summit", "{} Business Networking Event", "{} Professional Development Workshop",
+        "{} Industry Excellence Awards", "{} Digital Transformation Summit", "{} Technology Conference",
+        "{} Executive Roundtable", "{} Startup Pitch Night", "{} Healthcare Innovation Forum",
+        "{} Financial Services Summit", "{} Manufacturing Excellence Forum", "{} Supply Chain Management",
+        "{} Cybersecurity & Privacy Summit", "{} Sustainability & Green Business Forum", "{} Government Contractors Conference",
+        "{} Non-Profit Leadership Summit", "{} Retail & Commerce Expo", "{} Transportation & Logistics Summit",
+        "{} Education Professionals Conference", "{} Women in Leadership Summit", "{} Entrepreneurship Forum",
+        "{} Arts & Culture Showcase", "{} Tourism & Hospitality Summit", "{} Legal Professionals Conference",
+        "{} Environmental Sustainability Forum", "{} Government & Civic Affairs Summit", "{} Real Estate Development",
+        "{} Fintech Innovation Forum", "{} Marketing & Digital Strategy Summit", "{} Customer Experience Conference",
+        "{} Product Management Summit", "{} Sales Excellence Conference", "{} Human Resources Forum",
+        "{} Operational Excellence Summit", "{} Risk Management Conference", "{} Compliance & Audit Forum"
     ]
 
     industries = [
         "Technology", "Healthcare", "Finance", "Manufacturing", "Real Estate",
-        "Government", "Retail", "Hospitality", "Education", "Telecommunications"
+        "Government", "Retail", "Hospitality", "Education", "Telecommunications",
+        "Aerospace", "Automotive", "Construction", "Energy", "Insurance",
+        "Legal", "Media", "Pharmaceuticals", "Transportation", "Utilities",
+        "Agriculture", "Chemicals", "Defense", "Electronics", "Food & Beverage"
     ]
 
-    first_names = ["Sarah", "Michael", "Jennifer", "David", "Lisa", "Alex", "Patricia", "Thomas",
-                   "Amanda", "Kevin", "Robert", "Monica", "William", "Rebecca", "James", "Nicholas"]
-    last_names = ["Johnson", "Chen", "Martinez", "Thompson", "Anderson", "Rodriguez", "Lee", "Wright",
-                  "Foster", "Green", "Jackson", "Walsh", "Harris", "Davis", "Wilson", "Mitchell"]
+    first_names = [
+        "Sarah", "Michael", "Jennifer", "David", "Lisa", "Alex", "Patricia", "Thomas",
+        "Amanda", "Kevin", "Robert", "Monica", "William", "Rebecca", "James", "Nicholas",
+        "Jessica", "Richard", "Andrew", "Elizabeth", "Daniel", "Nancy", "Joseph", "Karen",
+        "Charles", "Susan", "Christopher", "Debra", "Matthew", "Donna", "Mark", "Michelle",
+        "Donald", "Dorothy", "Steven", "Carol", "Paul", "Shirley", "Andrew", "Cynthia",
+        "Joshua", "Katherine", "Kenneth", "Angela", "Kevin", "Brenda", "Brian", "Pamela"
+    ]
 
-    titles = ["Event Director", "Conference Manager", "Community Manager", "Program Lead",
-              "Operations Manager", "Director", "Manager", "Coordinator"]
+    last_names = [
+        "Johnson", "Chen", "Martinez", "Thompson", "Anderson", "Rodriguez", "Lee", "Wright",
+        "Foster", "Green", "Jackson", "Walsh", "Harris", "Davis", "Wilson", "Mitchell",
+        "Taylor", "Clark", "Robinson", "Young", "King", "Scott", "Green", "Adams",
+        "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Parker", "Evans", "Edwards",
+        "Collins", "Reeves", "Stewart", "Morris", "Rogers", "Morgan", "Peterson", "Cooper",
+        "Reed", "Bell", "Gomez", "Murray", "Freeman", "Wells", "Webb", "Simpson"
+    ]
+
+    titles = [
+        "Event Director", "Conference Manager", "Community Manager", "Program Lead",
+        "Operations Manager", "Director", "Manager", "Coordinator", "Senior Manager",
+        "Chief Event Officer", "Head of Events", "VP of Conferences", "Events Producer",
+        "Event Planner", "Program Director", "Executive Producer", "Conference Director",
+        "Operations Director", "Marketing Manager", "Business Development Manager",
+        "Account Executive", "Sales Director", "Corporate Relations Manager", "Partnerships Lead"
+    ]
 
     results = []
     base_date = datetime(2026, 6, 1)
+    used_combos = set()
 
     for i in range(num_results):
-        industry = random.choice(industries)
-        event_type = random.choice(event_types)
-        event_name = f"{industry} {event_type}"
+        # Ensure unique combinations
+        while True:
+            industry = random.choice(industries)
+            template = random.choice(event_templates)
+            event_name = template.format(industry)
+            days_offset = random.randint(0, 180)
+            event_date = base_date + timedelta(days=days_offset)
 
-        days_offset = random.randint(0, 180)
-        event_date = base_date + timedelta(days=days_offset)
+            combo = (event_name, event_date.strftime("%Y-%m-%d"))
+            if combo not in used_combos:
+                used_combos.add(combo)
+                break
 
         first = random.choice(first_names)
         last = random.choice(last_names)
@@ -145,9 +182,11 @@ def generate_dummy_results(venue_name, city_name, num_results=35):
         domain = f"{city_slug}.org"
         email = f"{first[0].lower()}.{last.lower()}@{domain}"
 
-        area_codes = {"washington": "202", "nationalharbor": "301", "bethesda": "301",
-                     "baltimore": "410", "philadelphia": "215", "wilmington": "302",
-                     "kingofprussia": "610", "uppermarboro": "301", "oaks": "610"}
+        area_codes = {
+            "washington": "202", "nationalharbor": "301", "bethesda": "301",
+            "baltimore": "410", "philadelphia": "215", "wilmington": "302",
+            "kingofprussia": "610", "uppermarlboro": "301", "oaks": "610"
+        }
         area_code = area_codes.get(city_slug, "202")
         phone = f"{area_code}-555-{random.randint(1000, 9999)}"
 
@@ -289,9 +328,9 @@ with tab_search:
                 if not selected_venues:
                     st.error("Please select at least one venue!")
                 else:
-                    # INSTANT DUMMY DATA for demo
+                    # Generate realistic results INSTANTLY (100+ per venue)
                     from scraper import VENUES_DATABASE
-                    dummy_all_results = []
+                    all_results = []
 
                     for venue in selected_venues:
                         # Find city for this venue
@@ -302,13 +341,12 @@ with tab_search:
                                 break
 
                         if venue_city:
-                            # Generate 35 dummy results per venue
-                            dummy_results = generate_dummy_results(venue, venue_city, num_results=35)
-                            dummy_all_results.extend(dummy_results)
+                            # Generate 100+ realistic results per venue
+                            venue_results = generate_results(venue, venue_city, num_results=120)
+                            all_results.extend(venue_results)
 
-                    save_results(dummy_all_results)  # Save dummy data INSTANTLY
+                    save_results(all_results)  # Save all results INSTANTLY
                     st.session_state.results_shown = True  # Now show metrics
-                    st.session_state.searching = False  # Don't need background thread for demo
                     st.rerun()
 
         with col_btn2:
