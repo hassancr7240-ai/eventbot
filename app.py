@@ -371,7 +371,8 @@ with tab_search:
     if st.session_state.get("searching", False):
         def run_search_background():
             try:
-                from scraper import scrape_eventbrite, VENUES_DATABASE
+                from scraper_real import scrape_eventbrite
+                from scraper import VENUES_DATABASE
                 import sys
 
                 venues_to_search = st.session_state.get("search_venues", [])
@@ -417,9 +418,13 @@ with tab_search:
         # Start thread if not already running
         if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
             print("\n[APP] Starting background thread...", file=sys.stderr)
+            sys.stdout.flush()
+            sys.stderr.flush()
             thread = threading.Thread(target=run_search_background, daemon=True)
             thread.start()
             st.session_state.search_thread = thread
+            print("[APP] Thread started\n", file=sys.stderr)
+            sys.stderr.flush()
 
     # Show results if search has started
     if st.session_state.get("results_shown", False):
