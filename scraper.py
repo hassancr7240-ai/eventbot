@@ -30,7 +30,7 @@ def save_results(results):
 
 # Real event database for DC/Baltimore/Philadelphia area
 EVENTS_DATABASE = {
-    "washington": [
+    "washington": [  # key: "washington" matches "Washington"
         {"name": "Annual Leadership Summit 2026", "date": "2026-07-15", "contact": "Sarah Johnson", "title": "Event Director", "email": "sarah.johnson@leadershipdc.org", "phone": "202-555-0101"},
         {"name": "Tech Innovation Conference", "date": "2026-08-22", "contact": "Michael Chen", "title": "Conference Manager", "email": "m.chen@techconf2026.com", "phone": "202-555-0102"},
         {"name": "Business Networking Mixer", "date": "2026-09-10", "contact": "Jennifer Martinez", "title": "Community Manager", "email": "jen@dcbusiness.org", "phone": "202-555-0103"},
@@ -60,7 +60,7 @@ EVENTS_DATABASE = {
         {"name": "Philadelphia Construction Expo", "date": "2026-11-20", "contact": "Steven Taylor", "title": "Project Manager", "email": "s.taylor@philconstruction.org", "phone": "215-555-0105"},
         {"name": "Education & Learning Summit", "date": "2026-12-08", "contact": "Rachel Meyer", "title": "Education Director", "email": "r.meyer@philedu.org", "phone": "215-555-0106"},
     ],
-    "oxon hill": [
+    "oxon-hill": [
         {"name": "Gaylord National Conference 2026", "date": "2026-08-10", "contact": "Lisa White", "title": "Sales Manager", "email": "l.white@gaylordnational.com", "phone": "301-555-0101"},
         {"name": "Federal Government Summit", "date": "2026-09-15", "contact": "John Anderson", "title": "Government Relations", "email": "j.anderson@fedgov.org", "phone": "301-555-0102"},
     ],
@@ -75,20 +75,18 @@ def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str
     results = load_results()
 
     try:
-        city_lower = city.lower()
+        city_lower = city.lower().strip()
 
-        # Normalize city name for lookup
-        city_lookup = city_lower.replace(" ", "-") if " " in city_lower else city_lower
+        # Normalize city name - replace spaces with hyphens for database lookup
+        city_lookup = city_lower.replace(" ", "-")
+
+        logger.info(f"Searching {city} (lookup key: '{city_lookup}')")
+        logger.info(f"Available keys in database: {list(EVENTS_DATABASE.keys())}")
 
         # Get events for this city from database
         city_events = EVENTS_DATABASE.get(city_lookup, [])
 
-        if not city_events:
-            # Try alternate naming
-            city_events = EVENTS_DATABASE.get(city_lower, [])
-
-        logger.info(f"Searching {city} for all events")
-        logger.info(f"Found {len(city_events)} events in database for {city_lookup}")
+        logger.info(f"Found {len(city_events)} events in database for '{city_lookup}'")
 
         # Simulate finding events one by one (for live streaming effect)
         for event_data in city_events:
