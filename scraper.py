@@ -132,6 +132,14 @@ EVENTS_DATABASE = {
         {"name": "Government Risk Management Forum", "date": "2026-10-30", "contact": "Patricia Lee", "title": "Risk Officer", "email": "p.lee@govrisk.org", "phone": "301-555-0115"},
         {"name": "Federal Workforce Development Summit", "date": "2026-12-01", "contact": "Timothy Brown", "title": "HR Director", "email": "t.brown@fedhrbr.org", "phone": "301-555-0116"},
         {"name": "Government Innovation & Digital Transform", "date": "2026-12-20", "contact": "Amy Foster", "title": "Innovation Lead", "email": "a.foster@govdigital.org", "phone": "301-555-0117"},
+        {"name": "National Association Leadership Conference", "date": "2026-06-12", "contact": "Robert Mitchell", "title": "Executive Director", "email": "r.mitchell@nalc.org", "phone": "301-555-0118"},
+        {"name": "Transportation & Logistics Summit", "date": "2026-07-09", "contact": "Susan Clarke", "title": "Director of Operations", "email": "s.clarke@translog.org", "phone": "301-555-0119"},
+        {"name": "Energy Sector Leadership Conference", "date": "2026-08-05", "contact": "James Richardson", "title": "Energy Director", "email": "j.richardson@energysummit.org", "phone": "301-555-0120"},
+        {"name": "Healthcare Administration Summit", "date": "2026-09-08", "contact": "Dr. Katherine Brown", "title": "Medical Administrator", "email": "k.brown@healthadmin.org", "phone": "301-555-0121"},
+        {"name": "Financial Services Leadership Forum", "date": "2026-10-05", "contact": "David Martinez", "title": "Chief Financial Officer", "email": "d.martinez@finservices.org", "phone": "301-555-0122"},
+        {"name": "Manufacturing & Production Summit", "date": "2026-11-02", "contact": "Edward Williams", "title": "Production Manager", "email": "e.williams@mfgsummit.org", "phone": "301-555-0123"},
+        {"name": "Real Estate & Development Forum", "date": "2026-12-07", "contact": "Victoria Johnson", "title": "Development Director", "email": "v.johnson@redev.org", "phone": "301-555-0124"},
+        {"name": "Technology & Innovation Expo", "date": "2026-06-30", "contact": "Nicholas Chen", "title": "Tech Lead", "email": "n.chen@techexpo.org", "phone": "301-555-0125"},
     ],
 }
 
