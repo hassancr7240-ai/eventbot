@@ -294,7 +294,6 @@ def scrape_eventbrite(venue_name: str, city: str, start_date: str, end_date: str
                     results.append(event)
                     save_results(results)  # SAVE IMMEDIATELY for live updates
                     logger.info(f"  Found: {event['event_name']}")
-                    time.sleep(0.05)  # Fast streaming - results appear immediately
 
             except Exception as e:
                 logger.debug(f"Error: {e}")
