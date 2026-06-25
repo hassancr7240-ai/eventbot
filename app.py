@@ -401,7 +401,7 @@ with tab_search:
 
                         if venue_city:
                             logger.info(f"Scraping {venue}...")
-                            scrape_eventbrite(venue, venue_city, start_date_str, end_date_str)
+                            scrape_eventbrite(venue, venue_city, start_date_str, end_date_str, num_results=100)
 
                     st.session_state.searching = False
                     logger.info("Search complete!")
