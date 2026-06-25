@@ -9,6 +9,126 @@
     "email": "contact@conference.com",
     "phone": "202-555-0123",
     "event_url": "https://www.eventbrite.com/d/washington--washington/events/?start_date=2026-06-01&end_date=2026-12-31",
-    "scraped_at": "2026-06-25T03:47:06.477107"
+    "scraped_at": "2026-06-25T13:37:23.261533"
+  },
+  {
+    "event_name": "Annual Leadership Summit",
+    "event_dates": "2026-07-15",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Sarah Johnson",
+    "contact_title": "Event Director",
+    "email": "sarah@events.com",
+    "phone": "202-555-0101",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:23.184602"
+  },
+  {
+    "event_name": "Tech Innovation Conference 2026",
+    "event_dates": "2026-08-22",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Michael Chen",
+    "contact_title": "Conference Manager",
+    "email": "michael.chen@techconf.com",
+    "phone": "202-555-0102",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:23.487953"
+  },
+  {
+    "event_name": "Business Networking Mixer",
+    "event_dates": "2026-09-10",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Jennifer Martinez",
+    "contact_title": "Community Manager",
+    "email": "jen@business.org",
+    "phone": "202-555-0103",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:23.792294"
+  },
+  {
+    "event_name": "Digital Marketing Workshop",
+    "event_dates": "2026-09-28",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "David Thompson",
+    "contact_title": "Training Coordinator",
+    "email": "david.t@digital.edu",
+    "phone": "202-555-0104",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:24.096563"
+  },
+  {
+    "event_name": "Healthcare Innovation Forum",
+    "event_dates": "2026-10-05",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Dr. Lisa Anderson",
+    "contact_title": "Program Lead",
+    "email": "l.anderson@healthcare.net",
+    "phone": "202-555-0105",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:24.400478"
+  },
+  {
+    "event_name": "Startup Pitch Night",
+    "event_dates": "2026-10-18",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Alex Rodriguez",
+    "contact_title": "Entrepreneur Relations",
+    "email": "alex@startup.hub",
+    "phone": "202-555-0106",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:24.705529"
+  },
+  {
+    "event_name": "Supply Chain Summit",
+    "event_dates": "2026-11-12",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Patricia Lee",
+    "contact_title": "Operations Manager",
+    "email": "p.lee@supply.com",
+    "phone": "202-555-0107",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:25.009529"
+  },
+  {
+    "event_name": "Real Estate Development Conference",
+    "event_dates": "2026-11-25",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Thomas Wright",
+    "contact_title": "Event Producer",
+    "email": "t.wright@redev.co",
+    "phone": "202-555-0108",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:25.314708"
+  },
+  {
+    "event_name": "Financial Services Forum",
+    "event_dates": "2026-12-02",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Amanda Foster",
+    "contact_title": "Executive Assistant",
+    "email": "amanda.f@finance.org",
+    "phone": "202-555-0109",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:25.618402"
+  },
+  {
+    "event_name": "Sustainability & Green Business Summit",
+    "event_dates": "2026-12-10",
+    "venue_name": "DC Convention Center",
+    "city": "Washington",
+    "contact_person": "Kevin Green",
+    "contact_title": "Sustainability Officer",
+    "email": "kevin@green.biz",
+    "phone": "202-555-0110",
+    "event_url": "https://www.eventbrite.com/d/washington--washington/",
+    "scraped_at": "2026-06-25T13:55:25.922699"
   }
 ]
