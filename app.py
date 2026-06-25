@@ -111,9 +111,21 @@ st.divider()
 # METRICS
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Show metrics only if there are results
+# Initialize session state for fresh start
+if "results_shown" not in st.session_state:
+    st.session_state.results_shown = False
+    # Delete old results file on first load
+    try:
+        os.remove(RESULTS_FILE)
+    except:
+        pass
+
+# Show metrics - display 0 until search starts
 try:
-    results = load_results()
+    if st.session_state.results_shown:
+        results = load_results()
+    else:
+        results = []
 except:
     results = []
 
@@ -210,7 +222,8 @@ with tab_search:
                 if not selected_venues:
                     st.error("Please select at least one venue!")
                 else:
-                    save_results([])  # FRESH START
+                    save_results([])  # FRESH START - clear old results
+                    st.session_state.results_shown = True  # Now show metrics
                     st.session_state.searching = True
                     st.session_state.search_venues = selected_venues
                     st.rerun()
@@ -318,7 +331,10 @@ with tab_results:
     st.markdown("## 📊 Results")
 
     try:
-        results = load_results()
+        if st.session_state.get("results_shown", False):
+            results = load_results()
+        else:
+            results = []
     except:
         results = []
 
@@ -434,7 +450,10 @@ with tab_results:
             st.info("No results match filters")
 
     else:
-        st.info("👉 Go to Search tab and click START SEARCH")
+        if st.session_state.get("results_shown", False):
+            st.info("🔄 Search in progress... Results will appear here shortly")
+        else:
+            st.info("👉 Go to Search tab, select venues, and click START SEARCH")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 3: MANAGE VENUES
