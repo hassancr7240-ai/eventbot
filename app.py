@@ -316,9 +316,9 @@ with tab_search:
         else:
             st.info("Waiting for first results... (may take 30 seconds)")
 
-        # Auto-refresh UI every 1 second while searching
+        # Auto-refresh UI every 200ms while searching (FAST updates)
         if st.session_state.get("searching", False):
-            time.sleep(1)
+            time.sleep(0.2)
             st.rerun()
         else:
             st.success("✅ Search complete! View all results in the Results tab.")
