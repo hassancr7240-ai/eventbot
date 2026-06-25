@@ -12,8 +12,10 @@ import subprocess
 import threading
 import time
 import logging
+import sys
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(name)s: %(message)s')
+logger = logging.getLogger("eventbot")
 
 st.set_page_config(page_title="EventBot Pro", layout="wide", initial_sidebar_state="collapsed")
 
@@ -262,6 +264,7 @@ with tab_search:
         def run_search_live():
             try:
                 from scraper import scrape_eventbrite
+                import sys
 
                 venues_to_search = st.session_state.get("search_venues", [])
                 # Map venue name to city (from VENUES_DATABASE)
@@ -272,30 +275,45 @@ with tab_search:
                         break  # Stop if user clicked STOP
 
                     # Find city for this venue
-                    venue_city = selected_city
+                    venue_city = None
                     for city_key, city_venues in VENUES_DATABASE.items():
                         if venue in city_venues:
-                            venue_city = city_key.replace("-", " ").title()
+                            venue_city = city_key
                             break
 
-                    logger.info(f"Searching {venue} in {venue_city}...")
+                    if not venue_city:
+                        print(f"ERROR: Venue '{venue}' not found in database!", file=sys.stderr)
+                        continue
+
+                    print(f"[SCRAPER] Starting {venue} in {venue_city}...")
+                    sys.stdout.flush()
 
                     # Scrape this venue (generates 30+ events)
-                    scrape_eventbrite(venue, venue_city,
+                    result = scrape_eventbrite(venue, venue_city,
                                      start_date.strftime("%Y-%m-%d"),
                                      end_date.strftime("%Y-%m-%d"))
+
+                    print(f"[SCRAPER] Completed {venue} - found {len(result)} total results", file=sys.stderr)
+                    sys.stderr.flush()
 
                 st.session_state.searching = False
 
             except Exception as e:
+                print(f"[ERROR] {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
                 st.session_state.search_error = str(e)
                 st.session_state.searching = False
 
         # Start search thread if not already running
         if "search_thread" not in st.session_state or not st.session_state.search_thread.is_alive():
+            print("[STREAMLIT] Starting background search thread...")
+            sys.stdout.flush()
             thread = threading.Thread(target=run_search_live, daemon=True)
             thread.start()
             st.session_state.search_thread = thread
+            print("[STREAMLIT] Thread started, waiting for results...")
+            sys.stdout.flush()
 
         # Show live results - load from file (NO DELAYS)
         current_results = load_results()
@@ -316,8 +334,11 @@ with tab_search:
             if df_live:
                 st.dataframe(df_live, use_container_width=True, height=400)
 
-        # Auto-refresh INSTANTLY while searching (no delay)
+        st.write(f"*Last refresh: {datetime.now().strftime('%H:%M:%S')}*")
+
+        # Auto-refresh while searching
         if st.session_state.get("searching", False):
+            time.sleep(0.5)  # Small delay to prevent CPU spinning
             st.rerun()
         else:
             if result_count > 0:
