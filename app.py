@@ -219,9 +219,6 @@ with tab_search:
         </div>
         """, unsafe_allow_html=True)
 
-        # Live results container
-        results_placeholder = st.empty()
-
         # Run search in background
         def run_search_live():
             try:
@@ -244,29 +241,31 @@ with tab_search:
             thread.start()
             st.session_state.search_thread = thread
 
-        # Show live results - update every 500ms
-        with results_placeholder.container():
-            current_results = load_results()
+        # Show live results - load from file
+        current_results = load_results()
 
-            if current_results:
-                st.markdown(f"**✅ Found {len(current_results)} events so far**")
+        if current_results:
+            st.markdown(f"**✅ Found {len(current_results)} events so far**")
 
-                df_live = []
-                for r in current_results[-10:]:  # Show last 10
-                    df_live.append({
-                        "Event": r.get("event_name", "")[:50],
-                        "Date": r.get("event_dates", ""),
-                        "Venue": r.get("venue_name", "")
-                    })
+            df_live = []
+            for r in current_results[-10:]:  # Show last 10
+                df_live.append({
+                    "Event": r.get("event_name", "")[:50],
+                    "Date": r.get("event_dates", ""),
+                    "Venue": r.get("venue_name", "")
+                })
 
-                if df_live:
-                    st.dataframe(df_live, use_container_width=True, height=300)
-            else:
-                st.info("Waiting for first results... (may take 30 seconds)")
+            if df_live:
+                st.dataframe(df_live, use_container_width=True, height=300)
+        else:
+            st.info("Waiting for first results... (may take 30 seconds)")
 
-        # Auto-refresh UI every 500ms using sleep and rerun
-        time.sleep(0.5)
-        st.rerun()
+        # Auto-refresh UI every 1 second while searching
+        if st.session_state.get("searching", False):
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.success("✅ Search complete! View all results in the Results tab.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2: RESULTS
