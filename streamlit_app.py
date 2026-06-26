@@ -76,15 +76,22 @@ def load_config():
         # Try Streamlit Cloud secrets first
         if hasattr(st, 'secrets'):
             try:
-                return {"serpapi_key": st.secrets.get("serpapi_key", "")}
+                key = st.secrets.get("serpapi_key", "")
+                if key:
+                    return {"serpapi_key": key}
             except:
                 pass
 
         # Fall back to local config.json
         with open("data/config.json") as f:
-            return json.load(f)
+            config = json.load(f)
+            if config.get("serpapi_key"):
+                return config
     except:
-        return {}
+        pass
+
+    # Fallback key for deployment
+    return {"serpapi_key": "5ca17c82086ce73b144d3c0c442de221f0fbffe6ba1525bf4ffc300742e9cbef"}
 
 def search_google_for_specific_events(venue: str, city: str, serpapi_key: str):
     """Search for actual event titles on Eventbrite in a venue"""
