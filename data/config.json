@@ -1,0 +1,10 @@
+{
+  "brave_api_key": "",
+  "serpapi_key": "YOUR_SERPAPI_KEY_HERE",
+  "anthropic_key": "",
+  "eventbrite_api_key": "",
+  "eventbrite_client_secret": "",
+  "eventbrite_private_token": "",
+  "eventbrite_public_token": "",
+  "ticketmaster_api_key": ""
+}

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+output/
+logs/
+*.log
+.env
+.DS_Store
+data/scheduler_config.json
+.streamlit/secrets.toml
+data/config.json
